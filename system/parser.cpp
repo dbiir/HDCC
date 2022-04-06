@@ -32,6 +32,7 @@ void print_usage() {
 	printf("\t-ctINT       ; CLIENT_THREAD_CNT\n");
 	printf("\t-ctrINT       ; CLIENT_REM_THREAD_CNT\n");
 	printf("\t-ctsINT       ; CLIENT_SEND_THREAD_CNT\n");
+  printf("\t-tcINT       ; CALVIN_THREAD_CNT (FOR MIXCC)\n");
 
 	printf("\t-tppINT       ; MAX_TXN_PER_PART\n");
 	printf("\t-tifINT       ; MAX_TXN_IN_FLIGHT\n");
@@ -124,6 +125,8 @@ void parser(int argc, char * argv[]) {
       g_send_thread_cnt = atoi( &argv[i][3] );
     else if (argv[i][1] == 'c' && argv[i][2] == 't')
       g_client_thread_cnt = atoi( &argv[i][3] );
+    else if (argv[i][1] == 't' && argv[i][2] == 'c')
+      g_calvin_thread_cnt = atoi( &argv[i][3] );
     else if (argv[i][1] == 'w' && argv[i][2] == 'h')
       g_num_wh = atoi( &argv[i][3] );
     else if (argv[i][1] == 'c' && argv[i][2] == 'f')
@@ -188,6 +191,8 @@ void parser(int argc, char * argv[]) {
   // Remove abort thread
   g_abort_thread_cnt = 0;
   g_total_thread_cnt -= 1;
+#elif CC_ALG == MIXED_LOCK
+  g_total_thread_cnt += 2; // sequencer + scheduler thread
 #endif
   g_total_client_thread_cnt =
       g_client_thread_cnt + g_client_rem_thread_cnt + g_client_send_thread_cnt;
@@ -233,7 +238,7 @@ void parser(int argc, char * argv[]) {
       printf("g_wh_update %d\n",g_wh_update );
       printf("g_part_cnt %d\n",g_part_cnt );
       printf("g_node_cnt %d\n",g_node_cnt );
-			printf("g_thread_cnt %d\n",g_thread_cnt );
+			// printf("g_thread_cnt %d\n",g_thread_cnt );
 			printf("g_query_intvl %ld\n",g_query_intvl );
 			printf("g_prt_lat_distr %d\n",g_prt_lat_distr );
 			printf("g_part_alloc %d\n",g_part_alloc );
@@ -256,6 +261,9 @@ void parser(int argc, char * argv[]) {
       printf("g_total_client_thread_cnt %d\n",g_total_client_thread_cnt);
       printf("g_total_node_cnt %d\n",g_total_node_cnt);
       printf("g_seq_batch_time_limit %ld\n",g_seq_batch_time_limit);
+#if CC_ALG == MIXED_LOCK
+      printf("g_calvin_thread_cnt %d\n",g_calvin_thread_cnt);
+#endif
 
     // Initialize client-specific globals
   if (g_node_id >= g_node_cnt) init_client_globals();

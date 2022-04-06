@@ -198,6 +198,8 @@
 #define TXN_QUEUE_SIZE_LIMIT    THREAD_CNT
 // [CALVIN]
 #define SEQ_THREAD_CNT 4
+// [MIXED_LOCK]
+#define CALVIN_THREAD_CNT 1
 // [TICTOC]
 #define MAX_NUM_WAITS 4
 #define PRE_ABORT true
@@ -404,6 +406,7 @@ enum PPSTxnType {
 #define DLI_DTA3 26
 #define SILO 27
 #define CNULL 28
+#define MIXED_LOCK 29
 // TIMESTAMP allocation method.
 #define TS_MUTEX          1
 #define TS_CAS            2

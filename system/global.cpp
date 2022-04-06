@@ -164,7 +164,7 @@ UInt32 g_logger_thread_cnt = 1;
 UInt32 g_logger_thread_cnt = 0;
 #endif
 UInt32 g_send_thread_cnt = SEND_THREAD_CNT;
-#if CC_ALG == CALVIN
+#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
 // sequencer + scheduler thread
 UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_logger_thread_cnt + 3;
 #else
@@ -210,6 +210,9 @@ UInt64 g_his_recycle_len = HIS_RECYCLE_LEN;
 
 // CALVIN
 UInt32 g_seq_thread_cnt = SEQ_THREAD_CNT;
+
+// MIXED_LOCK
+UInt32 g_calvin_thread_cnt = CALVIN_THREAD_CNT;
 
 // TICTOC
 uint32_t g_max_num_waits = MAX_NUM_WAITS;
