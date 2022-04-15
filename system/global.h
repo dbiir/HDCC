@@ -278,6 +278,10 @@ extern ofstream abort_file;
 // CALVIN
 extern UInt32 g_seq_thread_cnt;
 
+//MIXED_LOCK
+extern UInt32 g_calvin_thread_cnt; // number of threads in the calvin thread pool
+extern UInt64 g_data_shard_size; // number of tuples in each data shard
+
 // TICTOC
 extern uint32_t g_max_num_waits;
 
@@ -313,6 +317,7 @@ enum RemReqType {
     LOG_MSG_RSP,
     LOG_FLUSHED,
     CALVIN_ACK,
+    CONF_STAT,
   NO_MSG
 };
 
