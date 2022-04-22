@@ -13,16 +13,21 @@ struct LockEntry {
 
 class Row_mixed_lock {
 public:
-    void init(row_t * row);
+    RC lock_get(lock_t type, TxnManager * txn);
+    RC lock_get(lock_t type, TxnManager * txn, uint64_t* &txnids, int &txncnt);
+    RC lock_release(TxnManager * txn);
 private:
     row_t * _row;
     pthread_mutex_t * _latch;
     lock_t lock_type;
     UInt32 owner_cnt;
     UInt32 waiter_cnt;
-    LockEntry * latest_owner;
+    LockEntry * owners; 
     LockEntry * waiters_head;
     LockEntry * waiters_tail;
+    uint64_t own_starttime;
+
+    void 		return_entry(LockEntry * entry);
 
     ts_t _tid;
 };
