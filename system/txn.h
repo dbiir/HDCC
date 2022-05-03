@@ -201,6 +201,14 @@ public:
 	int volatile    ready_part;
 	int volatile    ready_ulk;
 
+#if CC_ALG == MIXED_LOCK
+	int algo; 	//calvin or silo
+	uint64_t        num_locks;
+	int             write_set[100];
+    int*            read_set;
+	RC              finish(RC rc);
+#endif
+
 #if CC_ALG == SILO
 	ts_t 			last_tid;
     ts_t            max_tid;
@@ -325,6 +333,12 @@ protected:
 	ts_t 			_cur_tid;
 	RC				validate_silo();
 #endif
+
+#if CC_ALG == MIXED_LOCK
+	bool 			_pre_abort;
+	RC				validate_silo();
+#endif
+
 };
 
 #endif

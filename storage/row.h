@@ -145,6 +145,8 @@ public:
 		Row_null * manager;
   #elif CC_ALG == SILO
   	Row_silo * manager;
+	#elif CC_ALG == MIXED_LOCK
+  	Row_mixed_lock * manager;
 	#endif
 	char * data;
 	int tuple_size;
