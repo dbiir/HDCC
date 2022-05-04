@@ -46,6 +46,17 @@ void QWorkQueue::init() {
 	work_dequeue_size = 0;
 	txn_enqueue_size = 0;
 	txn_dequeue_size = 0;
+#if CC_ALG == MIXED_LOCK
+	calvin_txn_queue = new boost::lockfree::queue<work_queue_entry* >(0);
+	calvin_work_queue = new boost::lockfree::queue<work_queue_entry* >(0);
+	calvin_txn_queue_size = 0;
+	calvin_txn_enqueue_size = 0;
+	calvin_txn_dequeue_size = 0;
+	calvin_work_queue_size = 0;
+	calvin_work_enqueue_size = 0;
+	calvin_work_dequeue_size = 0;
+	sem_init(&_calvin_semaphore, 0, 1);
+#endif
 
 	sem_init(&_semaphore, 0, 1);
 	top_element=NULL;
@@ -98,7 +109,7 @@ Message * QWorkQueue::sequencer_dequeue(uint64_t thd_id) {
 }
 
 void QWorkQueue::sched_enqueue(uint64_t thd_id, Message * msg) {
-	assert(CC_ALG == CALVIN);
+	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
 	assert(msg);
 	assert(ISSERVERN(msg->return_node_id));
 	uint64_t starttime = get_sys_clock();
@@ -124,7 +135,7 @@ void QWorkQueue::sched_enqueue(uint64_t thd_id, Message * msg) {
 Message * QWorkQueue::sched_dequeue(uint64_t thd_id) {
 	uint64_t starttime = get_sys_clock();
 
-	assert(CC_ALG == CALVIN);
+	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
 	Message * msg = NULL;
 	work_queue_entry * entry = NULL;
 
@@ -387,6 +398,88 @@ Message * QWorkQueue::queuetop(uint64_t thd_id)
 }
 
 #else
+
+#if CC_ALG == MIXED_LOCK
+void QWorkQueue::calvin_enqueue(uint64_t thd_id,Message * msg, bool busy) {
+	uint64_t starttime = get_sys_clock();
+	assert(msg);
+	DEBUG_M("QWorkQueue::enqueue work_queue_entry alloc\n");
+	work_queue_entry * entry = (work_queue_entry*)mem_allocator.align_alloc(sizeof(work_queue_entry));
+	entry->msg = msg;
+	entry->rtype = msg->rtype;
+	entry->txn_id = msg->txn_id;
+	entry->batch_id = msg->batch_id;
+	entry->starttime = get_sys_clock();
+	assert(ISSERVER || ISREPLICA);
+	DEBUG("Work Enqueue (%ld,%ld) %d\n",entry->txn_id,entry->batch_id,entry->rtype);
+
+	uint64_t mtx_wait_starttime = get_sys_clock();
+	if (msg->rtype == CL_QRY || msg->rtype == CL_QRY_O) {
+		while (!calvin_txn_queue->push(entry) && !simulation->is_done()) {}
+		sem_wait(&_calvin_semaphore);
+		calvin_txn_queue_size ++;
+		calvin_txn_enqueue_size ++;
+		sem_post(&_calvin_semaphore);
+	} else {
+		while (!calvin_work_queue->push(entry) && !simulation->is_done()) {}
+		sem_wait(&_calvin_semaphore);
+		calvin_work_queue_size ++;
+		calvin_work_enqueue_size ++;
+		sem_post(&_calvin_semaphore);
+	}
+	INC_STATS(thd_id,mtx[13],get_sys_clock() - mtx_wait_starttime);
+
+	if(busy) {
+		INC_STATS(thd_id,work_queue_conflict_cnt,1);
+	}
+	INC_STATS(thd_id,work_queue_enqueue_time,get_sys_clock() - starttime);
+	INC_STATS(thd_id,work_queue_enq_cnt,1);
+	INC_STATS(thd_id,trans_work_queue_item_total,txn_queue_size+work_queue_size);
+}
+
+Message * QWorkQueue::calvin_dequeue(uint64_t thd_id) {
+	uint64_t starttime = get_sys_clock();
+	assert(ISSERVER || ISREPLICA);
+	Message * msg = NULL;
+	work_queue_entry * entry = NULL;
+	uint64_t mtx_wait_starttime = get_sys_clock();
+	bool valid = false;
+
+	valid = calvin_work_queue->pop(entry);
+	if(!valid) {
+		valid = calvin_txn_queue->pop(entry);
+	}
+	INC_STATS(thd_id,mtx[14],get_sys_clock() - mtx_wait_starttime);
+
+	if(valid) {
+		msg = entry->msg;
+		assert(msg);
+		uint64_t queue_time = get_sys_clock() - entry->starttime;
+		INC_STATS(thd_id,work_queue_wait_time,queue_time);
+		INC_STATS(thd_id,work_queue_cnt,1);
+		if(msg->rtype == CL_QRY || msg->rtype == CL_QRY_O) {
+			sem_wait(&_calvin_semaphore);
+			calvin_txn_queue_size --;
+			calvin_txn_dequeue_size ++;
+			sem_post(&_calvin_semaphore);
+			INC_STATS(thd_id,work_queue_new_wait_time,queue_time);
+			INC_STATS(thd_id,work_queue_new_cnt,1);
+		} else {
+			sem_wait(&_calvin_semaphore);
+			calvin_work_queue_size --;
+			calvin_work_dequeue_size ++;
+			sem_post(&_calvin_semaphore);
+			INC_STATS(thd_id,work_queue_old_wait_time,queue_time);
+			INC_STATS(thd_id,work_queue_old_cnt,1);
+		}
+		msg->wq_time = queue_time;
+		mem_allocator.free(entry,sizeof(work_queue_entry));
+		INC_STATS(thd_id,work_queue_dequeue_time,get_sys_clock() - starttime);
+	}
+	return msg;
+}
+#endif
+
 void QWorkQueue::enqueue(uint64_t thd_id, Message * msg,bool busy) {
 	uint64_t starttime = get_sys_clock();
 	assert(msg);

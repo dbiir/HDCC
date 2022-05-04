@@ -101,6 +101,12 @@ void WorkerThread::fakeprocess(Message * msg) {
 			case RTXN:
 #if CC_ALG == CALVIN
         rc = process_calvin_rtxn(msg);
+#elif CC_ALG == MIXED_LOCK
+        if (_thd_id < g_calvin_thread_cnt) {
+          rc = process_calvin_rtxn(msg);
+        } else {
+          rc = process_rtxn(msg);
+        }
 #else
         rc = process_rtxn(msg);
 #endif
@@ -188,6 +194,12 @@ void WorkerThread::process(Message * msg) {
 			case RTXN:
 #if CC_ALG == CALVIN
         rc = process_calvin_rtxn(msg);
+#elif CC_ALG == MIXED_LOCK
+        if (_thd_id < g_calvin_thread_cnt) {
+          rc = process_calvin_rtxn(msg);
+        } else {
+          rc = process_rtxn(msg);
+        }
 #else
         rc = process_rtxn(msg);
 #endif
@@ -390,7 +402,15 @@ RC WorkerThread::run() {
     }
   #endif
 
+#if CC_ALG == MIXED_LOCK
+    if (_thd_id < g_calvin_thread_cnt) {
+      msg = work_queue.calvin_dequeue(get_thd_id());
+    } else {
+      msg = work_queue.dequeue(get_thd_id());
+    }
+#else
     msg = work_queue.dequeue(get_thd_id());
+#endif
 
     if(!msg) {
       if (idle_starttime == 0) idle_starttime = get_sys_clock();
@@ -406,6 +426,9 @@ RC WorkerThread::run() {
 
     if((msg->rtype != CL_QRY && msg->rtype != CL_QRY_O) || CC_ALG == CALVIN) {
       txn_man = get_transaction_manager(msg);
+#if CC_ALG == CALVIN
+      txn_man->algo = msg->algo;
+#endif
 
       if (CC_ALG != CALVIN && IS_LOCAL(txn_man->get_txn_id())) {
         if (msg->rtype != RTXN_CONT &&
@@ -452,6 +475,22 @@ RC WorkerThread::run() {
       }
       txn_man->register_thread(this);
     }
+    if (msg->rtype == CL_QRY && CC_ALG == MIXED_LOCK) {
+      txn_man = get_transaction_manager(msg);
+      txn_man->algo = msg->algo;
+      if (txn_man->algo == CALVIN) {
+        txn_man->txn_stats.clear_short();
+        txn_man->txn_stats.msg_queue_time += msg->mq_time;
+        txn_man->txn_stats.msg_queue_time_short += msg->mq_time;
+        msg->mq_time = 0;
+        txn_man->txn_stats.work_queue_time += msg->wq_time;
+        txn_man->txn_stats.work_queue_time_short += msg->wq_time;
+        //txn_man->txn_stats.network_time += msg->ntwk_time;
+        msg->wq_time = 0;
+        txn_man->txn_stats.work_queue_cnt += 1;
+      }
+      txn_man->register_thread(this);   
+    }
 #ifdef FAKE_PROCESS
     fakeprocess(msg);
 #else
@@ -468,8 +507,11 @@ RC WorkerThread::run() {
     // delete message
     ready_starttime = get_sys_clock();
 #if CC_ALG != CALVIN
+  if (CC_ALG == MIXED_LOCK && msg->algo == CALVIN) {
+  } else {
     msg->release();
     delete msg;
+  }
 #endif
     INC_STATS(get_thd_id(),worker_release_msg_time,get_sys_clock() - ready_starttime);
 
@@ -774,8 +816,11 @@ RC WorkerThread::process_rtxn(Message * msg) {
       msg->txn_id = txn_id;
     #endif
     // Put txn in txn_table
-    txn_man = txn_table.get_transaction_manager(get_thd_id(),txn_id,0);
-    txn_man->register_thread(this);
+    if (!txn_man)
+    {
+      txn_man = txn_table.get_transaction_manager(get_thd_id(),txn_id,0);
+      txn_man->register_thread(this);
+    }
     uint64_t ready_starttime = get_sys_clock();
     bool ready = txn_man->unset_ready();
     INC_STATS(get_thd_id(),worker_activate_txn_time,get_sys_clock() - ready_starttime);
@@ -954,7 +999,7 @@ RC WorkerThread::process_log_flushed(Message * msg) {
 RC WorkerThread::process_rfwd(Message * msg) {
   DEBUG("RFWD (%ld,%ld)\n",msg->get_txn_id(),msg->get_batch_id());
   txn_man->txn_stats.remote_wait_time += get_sys_clock() - txn_man->txn_stats.wait_starttime;
-  assert(CC_ALG == CALVIN);
+  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
   int responses_left = txn_man->received_response(((ForwardMessage*)msg)->rc);
   assert(responses_left >=0);
   if(txn_man->calvin_collect_phase_done()) {

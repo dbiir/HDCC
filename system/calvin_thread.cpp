@@ -86,7 +86,11 @@ RC CalvinLockThread::run() {
 		}
 
 		if(rc == RCOK) {
+			#if CC_ALG == MIXED_LOCK
+				work_queue.calvin_enqueue(_thd_id, msg, false);
+			#else
 				work_queue.enqueue(_thd_id,msg,false);
+			#endif
 		}
 		txn_man->set_ready();
 

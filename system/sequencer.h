@@ -76,6 +76,9 @@ class Sequencer {
 	qlite_ll * wl_tail;		// list of txns in batch being executed
 	volatile uint32_t next_txn_id;
 	Workload * _wl;
+#if CC_ALG == MIXED_LOCK
+	uint64_t last_epoch_max_id;
+#endif
 };
 
 class Seq_thread_t {

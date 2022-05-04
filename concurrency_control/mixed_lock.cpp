@@ -5,7 +5,6 @@
 #include "msg_queue.h"
 #include "query.h"
 #include "row.h"
-#include "row_lock.h"
 #include "row_mixed_lock.h"
 #include "row_mvcc.h"
 #include "row_ts.h"
@@ -53,14 +52,14 @@ RC TxnManager::validate_silo() {
   if (_pre_abort) {
     for (uint64_t i = 0; i < wr_cnt; i++) {  // pre_abort
       row_t* row = txn->accesses[write_set[i]]->orig_row;
-      if (row->manager->_tid != txn->get_txn_id()) {   //版本应该为当前事务id
+      if (row->manager->_tid != get_txn_id()) {   //版本应该为当前事务id
         rc = Abort;
         return rc;
       }
     }
     for (uint64_t i = 0; i < txn->row_cnt - wr_cnt; i++) {
       Access* access = txn->accesses[read_set[i]];
-      if (access->orig_row->manager->_tid != txn->get_txn_id()) {
+      if (access->orig_row->manager->_tid != get_txn_id()) {
         rc = Abort;
         return rc;
       }
@@ -73,7 +72,7 @@ RC TxnManager::validate_silo() {
     num_locks = 0;
     for (uint64_t i = 0; i < wr_cnt; i++) {
       row_t* row = txn->accesses[write_set[i]]->orig_row;
-      if (row->manager->lock_get(LOCK_EX, txn) == Abort)  //失败（calvin读写锁、silo写锁），回滚；成功，在此处加锁
+      if (row->manager->lock_get(LOCK_EX, this) == Abort)  //失败（calvin读写锁、silo写锁），回滚；成功，在此处加锁
       {
         break;
       }
@@ -99,7 +98,7 @@ RC TxnManager::validate_silo() {
   for (uint64_t i = 0; i < txn->row_cnt - wr_cnt; i++) {
     Access* access = txn->accesses[read_set[i]];
     bool success =
-        access->orig_row->manager->validate(txn->get_txn_id(), false);  //当前行上有写锁/版本变化
+        access->orig_row->manager->validate(access->tid, false);  //当前行上有写锁/版本变化
     if (!success) {
       rc = Abort;
       return rc;
@@ -110,7 +109,7 @@ RC TxnManager::validate_silo() {
   // 写验证
   for (uint64_t i = 0; i < wr_cnt; i++) {
     Access* access = txn->accesses[write_set[i]];
-    bool success = access->orig_row->manager->validate((txn->get_txn_id(), true);  //时间戳版本正确即可
+    bool success = access->orig_row->manager->validate(access->tid, true);  //时间戳版本正确即可
     if (!success) {
       rc = Abort;
       return rc;
@@ -123,16 +122,17 @@ RC TxnManager::validate_silo() {
 RC TxnManager::finish(RC rc) {
   if (rc == Abort) {
     for (uint64_t i = 0; i < this->num_locks; i++) {  
-      txn->accesses[write_set[i]]->orig_row->manager->lock_release(txn);
+      txn->accesses[write_set[i]]->orig_row->manager->lock_release(this);
       DEBUG("silo %ld abort release row %ld \n", this->get_txn_id(),
             txn->accesses[write_set[i]]->orig_row->get_primary_key());
     }
   } else {  //写入
     for (uint64_t i = 0; i < txn->write_cnt; i++) {
       Access* access = txn->accesses[write_set[i]];
-      _row->copy(access->data);                                           //写入数据
-      _tid = txn -> get_txn_id();                                      //更新时间戳(事务号)
-      txn->accesses[write_set[i]]->orig_row->manager->lock_release(txn);  //释放锁
+      row_t* row = access->orig_row;
+      row->copy(access->data);                                           //写入数据
+      row->manager->_tid = get_txn_id();                                      //更新时间戳(事务号)
+      txn->accesses[write_set[i]]->orig_row->manager->lock_release(this);  //释放锁
       DEBUG("silo %ld commit release row %ld \n", this->get_txn_id(),
             txn->accesses[write_set[i]]->orig_row->get_primary_key());
     }

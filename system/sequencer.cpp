@@ -39,6 +39,9 @@ void Sequencer::init(Workload * wl) {
 	wl_head = NULL;
 	wl_tail = NULL;
 	fill_queue = new boost::lockfree::queue<Message*, boost::lockfree::capacity<65526> > [g_node_cnt];
+#if CC_ALG == MIXED_LOCK
+	last_epoch_max_id = 0;
+#endif
 }
 
 // Assumes 1 thread does sequencer work
@@ -52,7 +55,12 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 	assert(wait_list != NULL);
 	assert(en->txns_left > 0);
 
+#if CC_ALG == MIXED_LOCK
+	uint64_t id = (msg->get_txn_id() - wait_list[0].msg->txn_id) / g_node_cnt;
+#elif CC_ALG == CALVIN
 	uint64_t id = msg->get_txn_id() / g_node_cnt;
+#endif
+
 	uint64_t prof_stat = get_sys_clock();
 	assert(wait_list[id].server_ack_cnt > 0);
 
@@ -70,10 +78,13 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 			// free msg, queries
 #if WORKLOAD == YCSB
 			YCSBClientQueryMessage* cl_msg = (YCSBClientQueryMessage*)wait_list[id].msg;
+#if CC_ALG == MIXED_LOCK
+#elif CC_ALG == CALVIN
 			for(uint64_t i = 0; i < cl_msg->requests.size(); i++) {
 					DEBUG_M("Sequencer::process_ack() ycsb_request free\n");
 					mem_allocator.free(cl_msg->requests[i],sizeof(ycsb_request));
 			}
+#endif
 #elif WORKLOAD == TPCC
 			TPCCClientQueryMessage* cl_msg = (TPCCClientQueryMessage*)wait_list[id].msg;
 			if(cl_msg->txn_type == TPCC_NEW_ORDER) {
@@ -206,11 +217,26 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 		}
 
 		txnid_t txn_id = g_node_id + g_node_cnt * next_txn_id;
+#if CC_ALG == MIXED_LOCK
+		uint64_t id = next_txn_id - last_epoch_max_id;
+		next_txn_id++;
+#elif CC_ALG == CALVIN
 		next_txn_id++;
 		uint64_t id = txn_id / g_node_cnt;
+#endif
 		msg->batch_id = en->epoch;
 		msg->txn_id = txn_id;
 		assert(txn_id != UINT64_MAX);
+
+#if CC_ALG == MIXED_LOCK
+		if (false) {
+			msg->algo = SILO;
+			work_queue.enqueue(thd_id, msg, false);
+			return;
+		} else {
+			msg->algo = CALVIN;
+		}
+#endif
 
 #if WORKLOAD == YCSB
 		std::set<uint64_t> participants = YCSBQuery::participants(msg,_wl);
@@ -323,6 +349,10 @@ void Sequencer::send_next_batch(uint64_t thd_id) {
 		INC_STATS(thd_id,seq_full_batch_cnt,1);
 	}
 	INC_STATS(thd_id,seq_prep_time,get_sys_clock() - prof_stat);
+#if CC_ALG == CALVIN
 	next_txn_id = 0;
+#elif CC_ALG == MIXED_LOCK
+	last_epoch_max_id = next_txn_id;
+#endif
 }
 

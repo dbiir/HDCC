@@ -42,6 +42,9 @@ public:
   uint64_t txn_id;
   uint64_t batch_id;
   uint64_t return_node_id;
+#if CC_ALG == MIXED_LOCK
+  int algo;
+#endif
 
   uint64_t wq_time;
   uint64_t mq_time;

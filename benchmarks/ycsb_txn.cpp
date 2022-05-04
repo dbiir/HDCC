@@ -48,7 +48,7 @@ void YCSBTxnManager::reset() {
 
 RC YCSBTxnManager::acquire_locks() {
   uint64_t starttime = get_sys_clock();
-  assert(CC_ALG == CALVIN);
+  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
   YCSBQuery* ycsb_query = (YCSBQuery*) query;
   locking_done = false;
   RC rc = RCOK;
@@ -337,7 +337,7 @@ RC YCSBTxnManager::run_calvin_txn() {
 
 RC YCSBTxnManager::run_ycsb() {
   RC rc = RCOK;
-  assert(CC_ALG == CALVIN);
+  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
   YCSBQuery* ycsb_query = (YCSBQuery*) query;
 
   for (uint64_t i = 0; i < ycsb_query->requests.size(); i++) {

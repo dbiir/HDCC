@@ -49,7 +49,7 @@ public:
 	uint64_t    orig_rts;
 	bool         locked;
 #endif
-#if CC_ALG == SILO
+#if CC_ALG == SILO || CC_ALG == MIXED_LOCK
 	ts_t 		tid;
 	// ts_t 		epoch;
 #endif

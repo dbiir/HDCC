@@ -279,7 +279,7 @@ extern ofstream abort_file;
 extern UInt32 g_seq_thread_cnt;
 
 //MIXED_LOCK
-extern UInt32 g_calvin_thread_cnt; // number of threads in the calvin thread pool
+extern UInt32 g_calvin_thread_cnt; // number of calvin threads in the thread pool
 extern UInt64 g_data_shard_size; // number of tuples in each data shard
 
 // TICTOC

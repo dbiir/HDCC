@@ -208,7 +208,7 @@ void row_t::free_row() {
 
 RC row_t::get_lock(access_t type, TxnManager * txn) {
 	RC rc = RCOK;
-#if CC_ALG == CALVIN
+#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
 	lock_t lt = (type == RD || type == SCAN)? LOCK_SH : LOCK_EX;
 	rc = this->manager->lock_get(lt, txn);
 #endif
@@ -478,6 +478,25 @@ RC row_t::get_row(access_t type, TxnManager *txn, Access *access) {
   access->data = txn->cur_row;
   INC_STATS(txn->get_thd_id(), trans_cur_row_copy_time, get_sys_clock() - copy_time);
 	goto end;
+#elif CC_ALG == MIXED_LOCK
+	if (txn->algo == SILO) {
+		uint64_t init_time = get_sys_clock();
+ 		DEBUG_M("row_t::get_row SILO alloc \n");
+		txn->cur_row = (row_t *) mem_allocator.alloc(sizeof(row_t));
+		txn->cur_row->init(get_table(), get_part_id());
+  		INC_STATS(txn->get_thd_id(), trans_cur_row_init_time, get_sys_clock() - init_time);
+
+		access->tid = manager->_tid;
+		txn->cur_row->copy(this);
+
+  		uint64_t copy_time = get_sys_clock();
+  		access->data = txn->cur_row;
+  		INC_STATS(txn->get_thd_id(), trans_cur_row_copy_time, get_sys_clock() - copy_time);
+		goto end;
+	} else {
+		access->data = this;
+		goto end;
+	}
 #elif CC_ALG == HSTORE || CC_ALG == HSTORE_SPEC || CC_ALG == CALVIN
 #if CC_ALG == HSTORE_SPEC
 	if(txn_table.spec_mode) {
@@ -729,6 +748,19 @@ uint64_t row_t::return_row(RC rc, access_t type, TxnManager *txn, row_t *row) {
     DEBUG_M("row_t::return_row XP free \n");
 	mem_allocator.free(row, sizeof(row_t));
 	return 0;
+#elif CC_ALG == MIXED_LOCK
+	if (txn->algo == CALVIN) {
+		// assert (row == NULL || row == this || type == XP);
+		assert (row == NULL || row == this);
+		this->manager->lock_release(txn);
+		return 0;
+	} else {
+		assert (row != NULL);
+		row->free_row();
+    	DEBUG_M("row_t::return_row XP free \n");
+		mem_allocator.free(row, sizeof(row_t));
+		return 0;
+	}
 #else
 	assert(false);
 #endif

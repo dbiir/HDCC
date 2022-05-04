@@ -12,11 +12,10 @@ void Row_mixed_lock::init(row_t * row) {
     lock_type = LOCK_NONE;
     owner_cnt = 0;
     waiter_cnt = 0;
-    latest_owner = NULL;
     waiters_head = NULL;
     waiters_tail = NULL;
-  owners = NULL;
-  own_starttime = 0;
+    owners = NULL;
+    own_starttime = 0;
 
     _tid = 0;
 }
@@ -57,7 +56,7 @@ RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int
   uint64_t lock_get_start_time = starttime;  
 
   uint64_t mtx_wait_starttime = get_sys_clock();
-  pthread_mutex_lock(latch);
+  pthread_mutex_lock(_latch);
   INC_STATS(txn->get_thd_id(), mtx[17], get_sys_clock() - mtx_wait_starttime);  
 
   INC_STATS(txn->get_thd_id(), trans_access_lock_wait_time, get_sys_clock() - lock_get_start_time);
@@ -124,21 +123,20 @@ final:
   txn->txn_stats.cc_time += timespan;
   txn->txn_stats.cc_time_short += timespan;
 
-  pthread_mutex_unlock(latch);
+  pthread_mutex_unlock(_latch);
 
   return rc;
 }
 
 RC Row_mixed_lock::lock_release(TxnManager *txn) {
-#if txn->algo == CALVIN
-  if (txn->isRecon()) {
+  if (txn->algo == CALVIN && txn->isRecon()) {
     return RCOK;
   }
-#endif
+
   uint64_t starttime = get_sys_clock();
   uint64_t mtx_wait_starttime = get_sys_clock();
 
-  pthread_mutex_lock(latch);
+  pthread_mutex_lock(_latch);
   INC_STATS(txn->get_thd_id(), mtx[18], get_sys_clock() - mtx_wait_starttime);
 
   // DEBUG("unlock (%ld,%ld): owners %d, own type %d, key %ld %lx\n", txn->get_txn_id(),
@@ -160,7 +158,6 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
     return_entry(en);   // free
     owner_cnt--;
     if (owner_cnt == 0) {
-      uint64_t endtime = get_sys_clock();
       lock_type = LOCK_NONE;
     }
 
@@ -186,10 +183,10 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
     LIST_GET_HEAD(waiters_head, waiters_tail, entry);  // 取到entry, 删除waiters_head
     uint64_t timespan = get_sys_clock() - entry->txn->twopl_wait_start;
     entry->txn->twopl_wait_start = 0;
-#if txn->algo != CALVIN
-    entry->txn->txn_stats.cc_block_time += timespan;
-    entry->txn->txn_stats.cc_block_time_short += timespan;
-#endif
+    if(txn->algo != CALVIN) {
+      entry->txn->txn_stats.cc_block_time += timespan;
+      entry->txn->txn_stats.cc_block_time_short += timespan;
+    }
 
     STACK_PUSH(owners, entry);  // 放入owners前部
 
@@ -199,10 +196,11 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
 
     if (entry->txn->decr_lr() == 0) {
       if (ATOM_CAS(entry->txn->lock_ready, false, true)) {
-#if txn->algo == CALVIN
-        entry->txn->txn_stats.cc_block_time += timespan;
-        entry->txn->txn_stats.cc_block_time_short += timespan;
-#endif
+        if(txn->algo == CALVIN) {
+          entry->txn->txn_stats.cc_block_time += timespan;
+          entry->txn->txn_stats.cc_block_time_short += timespan;  
+        }
+
         txn_table.restart_txn(txn->get_thd_id(), entry->txn->get_txn_id(),
                               entry->txn->get_batch_id());
       }
@@ -218,7 +216,7 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
   txn->txn_stats.cc_time += timespan;
   txn->txn_stats.cc_time_short += timespan;
 
-  pthread_mutex_unlock(latch);
+  pthread_mutex_unlock(_latch);
 
   return RCOK;
 }
@@ -226,11 +224,11 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
 // silo的验证
 bool Row_mixed_lock::validate(ts_t tid, bool in_write_set) {
   if (in_write_set)
-       // 写验证
+      // 写验证
         return tid == _tid;
 
   //读验证
-  if (owners->type = LOCK_EX) return false;  // 已加写锁
+  if (owners != NULL && owners->type == LOCK_EX) return false;  // 已加写锁
 
   bool valid = (tid == _tid);  // 时间戳校对，是否数据被修改过导致版本变化
   return valid;
