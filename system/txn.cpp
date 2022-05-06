@@ -906,6 +906,9 @@ void TxnManager::cleanup_row(RC rc, uint64_t rid) {
 #endif
 
 #if CC_ALG != SILO
+	if (CC_ALG == MIXED_LOCK && algo == SILO) {
+		return;
+	}
   txn->accesses[rid]->data = NULL;
 #endif
 }
