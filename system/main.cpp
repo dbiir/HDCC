@@ -16,6 +16,7 @@
 
 #include "abort_thread.h"
 #include "calvin_thread.h"
+#include "conflict_thread.h"
 #include "client_query.h"
 #include "dli.h"
 #include "dta.h"
@@ -64,9 +65,14 @@ InputThread * input_thds;
 OutputThread * output_thds;
 AbortThread * abort_thds;
 LogThread * log_thds;
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN
 CalvinLockThread * calvin_lock_thds;
 CalvinSequencerThread * calvin_seq_thds;
+#endif
+#if CC_ALG == MIXED_LOCK
+CalvinLockThread * calvin_lock_thds;
+CalvinSequencerThread * calvin_seq_thds;
+ConflictThread * conflict_thds;
 #endif
 
 // defined in parser.cpp
@@ -281,8 +287,11 @@ int main(int argc, char *argv[]) {
 #if LOGGING
 		all_thd_cnt += 1; // logger thread
 #endif
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN
 		all_thd_cnt += 2; // sequencer + scheduler thread
+#endif
+#if CC_ALG == MIXED_LOCK
+		all_thd_cnt += 3; //sequencer + scheduler thread + conflict thread
 #endif
 
 
@@ -301,9 +310,14 @@ int main(int argc, char *argv[]) {
 	output_thds = new OutputThread[sthd_cnt];
 	abort_thds = new AbortThread[1];
 	log_thds = new LogThread[1];
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN
 	calvin_lock_thds = new CalvinLockThread[1];
 	calvin_seq_thds = new CalvinSequencerThread[1];
+#endif
+#if CC_ALG == MIXED_LOCK
+	calvin_lock_thds = new CalvinLockThread[1];
+	calvin_seq_thds = new CalvinSequencerThread[1];
+	conflict_thds=new ConflictThread[1];
 #endif
 	// query_queue should be the last one to be initialized!!!
 	// because it collects txn latency
@@ -391,7 +405,7 @@ int main(int argc, char *argv[]) {
 	pthread_create(&p_thds[id++], NULL, run_thread, (void *)&abort_thds[0]);
 #endif
 
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN
 #if SET_AFFINITY
 	CPU_ZERO(&cpus);
 	CPU_SET(cpu_cnt, &cpus);
@@ -410,6 +424,35 @@ int main(int argc, char *argv[]) {
 
 	calvin_seq_thds[0].init(id,g_node_id,m_wl);
 	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&calvin_seq_thds[0]);
+#endif
+
+#if CC_ALG == MIXED_LOCK
+#if SET_AFFINITY
+	CPU_ZERO(&cpus);
+	CPU_SET(cpu_cnt, &cpus);
+	pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+	cpu_cnt++;
+#endif
+
+	calvin_lock_thds[0].init(id,g_node_id,m_wl);
+	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&calvin_lock_thds[0]);
+#if SET_AFFINITY
+	CPU_ZERO(&cpus);
+	CPU_SET(cpu_cnt, &cpus);
+	pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+	cpu_cnt++;
+#endif
+
+	calvin_seq_thds[0].init(id,g_node_id,m_wl);
+	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&calvin_seq_thds[0]);
+#if SET_AFFINITY
+	CPU_ZERO(&cpus);
+	CPU_SET(cpu_cnt, &cpus);
+	pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+	cpu_cnt++;
+#endif
+	conflict_thds[0].init(id,g_node_id,m_wl);
+	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&conflict_thds[0]);
 #endif
 
 	worker_num_thds[0].init(id,g_node_id,m_wl);

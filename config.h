@@ -200,6 +200,9 @@
 #define SEQ_THREAD_CNT 4
 // [MIXED_LOCK]
 #define CALVIN_THREAD_CNT 1
+#define SHARD_SIZE 100000
+#define LOWER_BOUND 1000
+#define UPPER_BOUND 2000
 // [TICTOC]
 #define MAX_NUM_WAITS 4
 #define PRE_ABORT true

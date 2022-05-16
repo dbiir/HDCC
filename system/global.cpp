@@ -54,10 +54,11 @@
 #include "tictoc.h"
 #include "key_xid.h"
 #include "rts_cache.h"
+#include "cc_selector.h"
 
 #include <boost/lockfree/queue.hpp>
 #include "da_block_queue.h"
-
+#include<queue>
 
 mem_alloc mem_allocator;
 Stats stats;
@@ -98,6 +99,7 @@ InOutTable inout_table;
 WkdbTimeTable wkdb_time_table;
 KeyXidCache wkdb_key_xid_cache;
 RtsCache wkdb_rts_cache;
+CCSelector cc_selector;
 // QTcpQueue tcp_queue;
 
 boost::lockfree::queue<DAQuery*, boost::lockfree::fixed_sized<true>> da_query_queue{100};
@@ -213,6 +215,10 @@ UInt32 g_seq_thread_cnt = SEQ_THREAD_CNT;
 
 // MIXED_LOCK
 UInt32 g_calvin_thread_cnt = CALVIN_THREAD_CNT;
+UInt64 g_data_shard_size = SHARD_SIZE;
+uint16_t g_lower_bound=LOWER_BOUND;
+uint16_t g_upper_bound=UPPER_BOUND;
+UInt64 g_shard_num=g_synth_table_size/g_data_shard_size+1;//+1 to prevent from overflow
 
 // TICTOC
 uint32_t g_max_num_waits = MAX_NUM_WAITS;
@@ -256,3 +262,4 @@ UInt32 g_repl_type = REPL_TYPE;
 UInt32 g_repl_cnt = REPLICA_CNT;
 
 map<string, string> g_params;
+queue<ConflictStaticsMessage*> g_conflict_queue;

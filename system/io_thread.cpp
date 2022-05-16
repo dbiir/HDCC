@@ -231,7 +231,12 @@ RC InputThread::server_recv_loop() {
 				msgs->erase(msgs->begin());
 				continue;
 			}
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN||CC_ALG==MIXED_LOCK
+			if(msg->rtype==CONF_STAT){
+				assert(CC_ALG==MIXED_LOCK);
+				g_conflict_queue.push((ConflictStaticsMessage*)msg);
+				continue;
+			}
 			if(msg->rtype == CALVIN_ACK ||(msg->rtype == CL_QRY && ISCLIENTN(msg->get_return_id())) ||
 			(msg->rtype == CL_QRY_O && ISCLIENTN(msg->get_return_id()))) {
 				work_queue.sequencer_enqueue(get_thd_id(),msg);

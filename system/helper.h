@@ -267,6 +267,7 @@ int get_thdid_from_txnid(uint64_t txnid);
 
 // key_to_part() is only for ycsb
 uint64_t key_to_part(uint64_t key);
+uint64_t key_to_shard(uint64_t key);
 uint64_t get_part_id(void * addr);
 // TODO can the following two functions be merged?
 uint64_t merge_idx_key(uint64_t key_cnt, uint64_t * keys);
