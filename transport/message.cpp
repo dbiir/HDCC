@@ -197,6 +197,7 @@ Message * Message::create_message(RemReqType rtype) {
       break;
     case CONF_STAT:
       msg = new ConflictStaticsMessage;
+      msg->init();
       break;
     default:
       assert(false);
@@ -1463,8 +1464,16 @@ void InitDoneMessage::copy_to_buf(char* buf) { Message::mcopy_to_buf(buf); }
 
 uint64_t ConflictStaticsMessage::get_size() {
   uint64_t size = Message::mget_size();
-  size += sizeof(bool) * conflict_statics.size();
+  size+=sizeof(size_t);
+  size += sizeof(uint16_t)*conflict_statics.size();
   return size;
+}
+
+void ConflictStaticsMessage::init(){
+  conflict_statics.init(g_shard_num);
+}
+void ConflictStaticsMessage::release(){
+  conflict_statics.release();
 }
 
 void ConflictStaticsMessage::copy_from_txn(TxnManager* txn) { Message::mcopy_from_txn(txn); }
@@ -1474,14 +1483,27 @@ void ConflictStaticsMessage::copy_to_txn(TxnManager* txn) { Message::mcopy_to_tx
 void ConflictStaticsMessage::copy_from_buf(char* buf) {
   Message::mcopy_from_buf(buf);
   uint64_t ptr = Message::mget_size();
-  COPY_VAL(conflict_statics, buf, ptr);
+  size_t size;
+  COPY_VAL(size,buf,ptr);
+  conflict_statics.init(size);
+  for(uint64_t i = 0 ; i < size;i++) {
+    DEBUG_M("ConflictStaticsMessage::copy_from_buf\n");
+    uint16_t stat;
+    COPY_VAL(stat,buf,ptr);
+    conflict_statics.add(stat);
+  }
   assert(ptr == get_size());
 }
 
 void ConflictStaticsMessage::copy_to_buf(char* buf) {
   Message::mcopy_to_buf(buf);
   uint64_t ptr = Message::mget_size();
-  COPY_BUF(buf, conflict_statics, ptr);
+  size_t size=conflict_statics.size();
+  COPY_BUF(buf,size,ptr);
+  for(uint64_t i=0;i<size;i++){
+    uint16_t stat=conflict_statics[i];
+    COPY_BUF(buf,stat,ptr);
+  }
   assert(ptr == get_size());
 }
 

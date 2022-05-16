@@ -94,6 +94,8 @@ class DABlockQueue;
 class DtaTimeTable;
 class KeyXidCache;
 class RtsCache;
+class CCSelector;
+class ConflictStaticsMessage;
 // class QTcpQueue;
 
 typedef uint32_t UInt32;
@@ -145,9 +147,11 @@ extern InOutTable inout_table;
 extern WkdbTimeTable wkdb_time_table;
 extern KeyXidCache wkdb_key_xid_cache;
 extern RtsCache wkdb_rts_cache;
+extern CCSelector cc_selector;
 // extern QTcpQueue tcp_queue;
 
 extern map<string, string> g_params;
+extern queue<ConflictStaticsMessage*> g_conflict_queue;
 
 extern bool volatile warmup_done;
 extern bool volatile enable_thread_mem_pool;
@@ -281,6 +285,9 @@ extern UInt32 g_seq_thread_cnt;
 //MIXED_LOCK
 extern UInt32 g_calvin_thread_cnt; // number of calvin threads in the thread pool
 extern UInt64 g_data_shard_size; // number of tuples in each data shard
+extern uint16_t g_lower_bound;
+extern uint16_t g_upper_bound;
+extern UInt64 g_shard_num;
 
 // TICTOC
 extern uint32_t g_max_num_waits;

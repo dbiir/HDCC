@@ -73,6 +73,11 @@ YCSBWorkload::key_to_part(uint64_t key) {
   return key % g_part_cnt;
 }
 
+int
+YCSBWorkload::key_to_shard(uint64_t key) {
+  return key / g_data_shard_size;
+}
+
 RC YCSBWorkload::init_table() {
 	RC rc;
     uint64_t total_row = 0;

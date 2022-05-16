@@ -91,8 +91,8 @@ public:
   void copy_from_txn(TxnManager * txn);
   void copy_to_txn(TxnManager * txn);
   uint64_t get_size();
-  void init() {}
-  void release() {}
+  void init() {};
+  void release() {};
 };
 
 class FinishMessage : public Message {
@@ -251,10 +251,10 @@ public:
   void copy_from_txn(TxnManager * txn);
   void copy_to_txn(TxnManager * txn);
   uint64_t get_size();
-  void init() {}
-  void release() {}
+  void init();
+  void release();
   
-  Array<bool> conflict_statics;
+  Array<uint16_t> conflict_statics;
 };
 
 class ClientResponseMessage : public Message {
