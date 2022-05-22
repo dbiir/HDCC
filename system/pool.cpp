@@ -187,7 +187,7 @@ void QryPool::init(Workload * wl, uint64_t size) {
 #endif
     m_qry->init();
     qry = m_qry;
-    put(thd_id,qry);
+    put(thd_id,qry,0);
     }
   }
 }
@@ -221,10 +221,10 @@ void QryPool::get(uint64_t thd_id, BaseQuery *& item) {
   DEBUG_R("get 0x%lx\n",(uint64_t)item);
 }
 
-void QryPool::put(uint64_t thd_id, BaseQuery * item) {
+void QryPool::put(uint64_t thd_id, BaseQuery * item, int algo) {
   assert(item);
 #if WORKLOAD == YCSB
-  ((YCSBQuery*)item)->reset();
+  ((YCSBQuery*)item)->reset(algo);
 #elif WORKLOAD == TPCC
   ((TPCCQuery*)item)->reset();
 #elif WORKLOAD == PPS

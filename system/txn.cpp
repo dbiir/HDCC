@@ -422,7 +422,7 @@ void TxnManager::reset() {
 
 void TxnManager::release() {
 	uint64_t prof_starttime = get_sys_clock();
-	qry_pool.put(get_thd_id(),query);
+	qry_pool.put(get_thd_id(),query, algo);
 	INC_STATS(get_thd_id(),mtx[0],get_sys_clock()-prof_starttime);
 	query = NULL;
 	prof_starttime = get_sys_clock();
@@ -454,7 +454,7 @@ void TxnManager::release() {
 
 void TxnManager::reset_query() {
 #if WORKLOAD == YCSB
-	((YCSBQuery*)query)->reset();
+	((YCSBQuery*)query)->reset(algo);
 #elif WORKLOAD == TPCC
 	((TPCCQuery*)query)->reset();
 #elif WORKLOAD == PPS
@@ -917,6 +917,11 @@ void TxnManager::cleanup(RC rc) {
 #if CC_ALG == SILO
   finish(rc);
 #endif
+#if CC_ALG == MIXED_LOCK
+	if (algo == SILO) {
+		finish(rc);
+	}
+#endif
 #if CC_ALG == OCC && MODE == NORMAL_MODE
 	occ_man.finish(rc,this);
 #endif
@@ -957,8 +962,6 @@ void TxnManager::cleanup(RC rc) {
 			row_t * row = calvin_locked_rows[i];
 			row->return_row(rc,RD,this,row);
 		}
-	} else {
-		finish(rc);
 	}
 #endif
 

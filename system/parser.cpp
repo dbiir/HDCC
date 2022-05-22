@@ -192,7 +192,7 @@ void parser(int argc, char * argv[]) {
   g_abort_thread_cnt = 0;
   g_total_thread_cnt -= 1;
 #elif CC_ALG == MIXED_LOCK
-  g_total_thread_cnt += 2; // sequencer + scheduler thread
+  g_total_thread_cnt += 3; // sequencer + scheduler thread + confilict stat thread
 #endif
   g_total_client_thread_cnt =
       g_client_thread_cnt + g_client_rem_thread_cnt + g_client_send_thread_cnt;

@@ -96,10 +96,12 @@ void YCSBQuery::release_requests() {
 
 }
 
-void YCSBQuery::reset() {
+void YCSBQuery::reset(int algo) {
 	BaseQuery::clear();
 #if CC_ALG != CALVIN
-	release_requests();
+	if (algo != CALVIN) {
+		release_requests();
+	}
 #endif
 	requests.clear();
 }

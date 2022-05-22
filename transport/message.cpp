@@ -206,6 +206,7 @@ Message * Message::create_message(RemReqType rtype) {
   msg->rtype = rtype;
   msg->txn_id = UINT64_MAX;
   msg->batch_id = UINT64_MAX;
+  msg->algo = 0;
   msg->return_node_id = g_node_id;
   msg->wq_time = 0;
   msg->mq_time = 0;
@@ -232,7 +233,7 @@ uint64_t Message::mget_size() {
 #endif
 #if CC_ALG == MIXED_LOCK
   size += sizeof(uint64_t);
-  // size += sizeof(int);
+  size += sizeof(int);
 #endif
   // for stats, send message queue time
   size += sizeof(uint64_t);
@@ -245,8 +246,11 @@ uint64_t Message::mget_size() {
 void Message::mcopy_from_txn(TxnManager * txn) {
   //rtype = query->rtype;
   txn_id = txn->get_txn_id();
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN
   batch_id = txn->get_batch_id();
+#elif CC_ALG == MIXED_LOCK
+  batch_id = txn->get_batch_id();
+  algo = txn->algo;
 #endif
 }
 
@@ -256,8 +260,11 @@ void Message::mcopy_from_buf(char * buf) {
   uint64_t ptr = 0;
   COPY_VAL(rtype,buf,ptr);
   COPY_VAL(txn_id,buf,ptr);
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN
   COPY_VAL(batch_id,buf,ptr);
+#elif CC_ALG == MIXED_LOCK
+  COPY_VAL(batch_id,buf,ptr);
+  COPY_VAL(algo,buf,ptr);
 #endif
   COPY_VAL(mq_time,buf,ptr);
 
@@ -281,8 +288,11 @@ void Message::mcopy_to_buf(char * buf) {
   uint64_t ptr = 0;
   COPY_BUF(buf,rtype,ptr);
   COPY_BUF(buf,txn_id,ptr);
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN
   COPY_BUF(buf,batch_id,ptr);
+#elif CC_ALG == MIXED_LOCK
+  COPY_BUF(buf,batch_id,ptr);
+  COPY_BUF(buf,algo,ptr);
 #endif
   COPY_BUF(buf,mq_time,ptr);
 

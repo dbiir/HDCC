@@ -30,6 +30,9 @@
 #include "message.h"
 #include "stats.h"
 #include <boost/lockfree/queue.hpp>
+#if CC_ALG == MIXED_LOCK
+#include "cc_selector.h"
+#endif
 
 void Sequencer::init(Workload * wl) {
 	next_txn_id = 0;
@@ -56,7 +59,7 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 	assert(en->txns_left > 0);
 
 #if CC_ALG == MIXED_LOCK
-	uint64_t id = (msg->get_txn_id() - wait_list[0].msg->txn_id) / g_node_cnt;
+	uint64_t id = (msg->get_txn_id() - en->start_txn_id) / g_node_cnt;
 #elif CC_ALG == CALVIN
 	uint64_t id = msg->get_txn_id() / g_node_cnt;
 #endif
@@ -209,6 +212,9 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 			en->size = 0;
 			en->txns_left = 0;
 			en->list = (qlite *) mem_allocator.alloc(sizeof(qlite) * en->max_size);
+#if CC_ALG == MIXED_LOCK
+			en->start_txn_id = g_node_id + g_node_cnt * next_txn_id;
+#endif
 			LIST_PUT_TAIL(wl_head,wl_tail,en)
 		}
 		if(en->size == en->max_size) {
@@ -220,6 +226,10 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 #if CC_ALG == MIXED_LOCK
 		uint64_t id = next_txn_id - last_epoch_max_id;
 		next_txn_id++;
+		if (id >= en->max_size) {
+			en->max_size *= 2;
+			en->list = (qlite *) mem_allocator.realloc(en->list,sizeof(qlite) * en->max_size);
+		}
 #elif CC_ALG == CALVIN
 		next_txn_id++;
 		uint64_t id = txn_id / g_node_cnt;
@@ -229,9 +239,12 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 		assert(txn_id != UINT64_MAX);
 
 #if CC_ALG == MIXED_LOCK
-		if (false) {
+		if (cc_selector.get_best_cc(_wl, msg) == SILO) {
 			msg->algo = SILO;
 			work_queue.enqueue(thd_id, msg, false);
+			// new a msg for sequencer to free. 
+			// TODO: leave the original msg free in the sequencer
+			en->list[id].msg = Message::create_message(CL_QRY);
 			return;
 		} else {
 			msg->algo = CALVIN;

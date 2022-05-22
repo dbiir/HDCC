@@ -195,6 +195,12 @@ int main(int argc, char *argv[]) {
 	seq_man.init(m_wl);
 	printf("Done\n");
 #endif
+#if CC_ALG == MIXED_LOCK
+	printf("Initializing cc selector... ");
+	fflush(stdout);
+	cc_selector.init();
+	printf("Done\n");
+#endif
 #if CC_ALG == MAAT
 	printf("Initializing Time Table... ");
 	fflush(stdout);

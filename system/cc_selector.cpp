@@ -4,6 +4,15 @@
 #include "msg_queue.h"
 
 CCSelector::CCSelector(){
+}
+
+CCSelector::~CCSelector(){
+    delete old_ptr;
+    delete new_ptr;
+    delete is_high_conflict;
+}
+
+void CCSelector::init() {
     old_ptr=new uint16_t[g_shard_num];
     new_ptr=new uint16_t[g_shard_num];
     is_high_conflict=new bool[g_shard_num];//this array has not been used for this version
@@ -11,11 +20,7 @@ CCSelector::CCSelector(){
     memset(new_ptr,0,g_shard_num*sizeof(uint16_t));
     memset(is_high_conflict,false,g_shard_num*sizeof(bool));
 }
-CCSelector::~CCSelector(){
-    delete old_ptr;
-    delete new_ptr;
-    delete is_high_conflict;
-}
+
 int CCSelector::get_best_cc(Workload *wl,Message *msg){
     auto req=((YCSBClientQueryMessage*)msg)->requests;
     for(uint64_t i=0;i<req.size();i++){
@@ -42,7 +47,7 @@ void CCSelector::ptr_switch(){
 Message* CCSelector::pack_msg(){
     Message *msg=Message::create_message(CONF_STAT);//initialization of conflict_statistics finishes inside this function
     for(uint64_t i=0;i<g_shard_num;i++){
-        ((ConflictStaticsMessage*)msg)->conflict_statics.set(i,new_ptr[i]);
+        ((ConflictStaticsMessage*)msg)->conflict_statics.add(new_ptr[i]);
     }
     return msg;
 }

@@ -235,6 +235,7 @@ RC InputThread::server_recv_loop() {
 			if(msg->rtype==CONF_STAT){
 				assert(CC_ALG==MIXED_LOCK);
 				g_conflict_queue.push((ConflictStaticsMessage*)msg);
+				msgs->erase(msgs->begin());
 				continue;
 			}
 			if(msg->rtype == CALVIN_ACK ||(msg->rtype == CL_QRY && ISCLIENTN(msg->get_return_id())) ||

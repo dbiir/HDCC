@@ -166,9 +166,11 @@ UInt32 g_logger_thread_cnt = 1;
 UInt32 g_logger_thread_cnt = 0;
 #endif
 UInt32 g_send_thread_cnt = SEND_THREAD_CNT;
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN
 // sequencer + scheduler thread
 UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_logger_thread_cnt + 3;
+#elif CC_ALG == MIXED_LOCK
+UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_logger_thread_cnt + 4;
 #else
 UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_logger_thread_cnt + 1;
 #endif
@@ -219,6 +221,7 @@ UInt64 g_data_shard_size = SHARD_SIZE;
 uint16_t g_lower_bound=LOWER_BOUND;
 uint16_t g_upper_bound=UPPER_BOUND;
 UInt64 g_shard_num=g_synth_table_size/g_data_shard_size+1;//+1 to prevent from overflow
+UInt64 g_conflict_send_interval = CONFLICT_SEND_INTERVAL;
 
 // TICTOC
 uint32_t g_max_num_waits = MAX_NUM_WAITS;

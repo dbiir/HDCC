@@ -102,7 +102,7 @@ void WorkerThread::fakeprocess(Message * msg) {
 #if CC_ALG == CALVIN
         rc = process_calvin_rtxn(msg);
 #elif CC_ALG == MIXED_LOCK
-        if (_thd_id < g_calvin_thread_cnt) {
+        if (msg->algo == CALVIN) {
           rc = process_calvin_rtxn(msg);
         } else {
           rc = process_rtxn(msg);
@@ -195,7 +195,7 @@ void WorkerThread::process(Message * msg) {
 #if CC_ALG == CALVIN
         rc = process_calvin_rtxn(msg);
 #elif CC_ALG == MIXED_LOCK
-        if (_thd_id < g_calvin_thread_cnt) {
+        if (msg->algo == CALVIN) {
           rc = process_calvin_rtxn(msg);
         } else {
           rc = process_rtxn(msg);
@@ -402,15 +402,8 @@ RC WorkerThread::run() {
     }
   #endif
 
-#if CC_ALG == MIXED_LOCK
-    if (_thd_id < g_calvin_thread_cnt) {
-      msg = work_queue.calvin_dequeue(get_thd_id());
-    } else {
-      msg = work_queue.dequeue(get_thd_id());
-    }
-#else
     msg = work_queue.dequeue(get_thd_id());
-#endif
+
 
     if(!msg) {
       if (idle_starttime == 0) idle_starttime = get_sys_clock();
@@ -426,9 +419,7 @@ RC WorkerThread::run() {
 
     if((msg->rtype != CL_QRY && msg->rtype != CL_QRY_O) || CC_ALG == CALVIN) {
       txn_man = get_transaction_manager(msg);
-#if CC_ALG == CALVIN
       txn_man->algo = msg->algo;
-#endif
 
       if (CC_ALG != CALVIN && IS_LOCAL(txn_man->get_txn_id())) {
         if (msg->rtype != RTXN_CONT &&
@@ -544,7 +535,7 @@ RC WorkerThread::process_rfin(Message * msg) {
   //if(!txn_man->query->readonly() || CC_ALG == OCC)
   if (!((FinishMessage*)msg)->readonly || CC_ALG == MAAT || CC_ALG == OCC || CC_ALG == TICTOC ||
        CC_ALG == BOCC || CC_ALG == SSI || CC_ALG == DLI_BASE ||
-       CC_ALG == DLI_OCC || CC_ALG == SILO)
+       CC_ALG == DLI_OCC || CC_ALG == SILO || CC_ALG == MIXED_LOCK) {
     msg_queue.enqueue(get_thd_id(), Message::create_message(txn_man, RACK_FIN),
                       GET_NODE_ID(msg->get_txn_id()));
   release_txn_man();
@@ -812,13 +803,18 @@ RC WorkerThread::process_rtxn(Message * msg) {
       msg->txn_id=((DAClientQueryMessage*)msg)->trans_id;
       txn_id=((DAClientQueryMessage*)msg)->trans_id;
     #else
-      txn_id = get_next_txn_id();
-      msg->txn_id = txn_id;
+      if (CC_ALG == MIXED_LOCK && msg->algo == SILO) {
+        txn_id = msg->txn_id;
+      } else {
+        txn_id = get_next_txn_id();
+        msg->txn_id = txn_id;
+      }
     #endif
     // Put txn in txn_table
     if (!txn_man)
     {
       txn_man = txn_table.get_transaction_manager(get_thd_id(),txn_id,0);
+      txn_man->algo = msg->algo;
       txn_man->register_thread(this);
     }
     uint64_t ready_starttime = get_sys_clock();

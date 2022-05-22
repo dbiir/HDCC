@@ -33,6 +33,9 @@
 #include "query.h"
 #include "msg_queue.h"
 #include "message.h"
+#if CC_ALG == MIXED_LOCK
+#include "row_mixed_lock.h"
+#endif
 
 void YCSBTxnManager::init(uint64_t thd_id, Workload * h_wl) {
 	TxnManager::init(thd_id, h_wl);
@@ -249,6 +252,11 @@ RC YCSBTxnManager::run_ycsb_1(access_t acctype, row_t * row_local) {
 		int fid = 0;
 	  char * data = row_local->get_data();
 	  *(uint64_t *)(&data[fid * 100]) = 0;
+#if CC_ALG == MIXED_LOCK
+    if (algo == CALVIN) {
+      row_local->manager->_tid = txn->txn_id;
+    }
+#endif
 #if YCSB_ABORT_MODE
     if (data[0] == 'a') return RCOK;
 #endif

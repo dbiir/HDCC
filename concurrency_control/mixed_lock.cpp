@@ -13,6 +13,7 @@
 #include "wl.h"
 #include "ycsb.h"
 #include "ycsb_query.h"
+#include "cc_selector.h"
 
 #if CC_ALG == MIXED_LOCK
 // txn->algo == silo
@@ -83,6 +84,13 @@ RC TxnManager::validate_silo() {
       DEBUG("TRY LOCK true %ld\n", get_txn_id());
       done = true;
     } else {  //中途加锁失败，回滚
+      // If silo fail to lock one row, we cannot know if the other rows are locked or not, so we count all rows as conflict.
+      for (uint64_t i = 0; i < txn->row_cnt; i++) {
+        row_t* row = txn->accesses[i]->orig_row;
+        if (key_to_part(row->get_primary_key()) == g_node_id) {
+          cc_selector.update_conflict_stats(key_to_shard(row->get_primary_key()));
+        }
+      }
       rc = Abort;
       return rc;
     }
@@ -100,6 +108,12 @@ RC TxnManager::validate_silo() {
     bool success =
         access->orig_row->manager->validate(access->tid, false);  //当前行上有写锁/版本变化
     if (!success) {
+      for (uint64_t i = 0; i < txn->row_cnt; i++) {
+        row_t* row = txn->accesses[i]->orig_row;
+        if (key_to_part(row->get_primary_key()) == g_node_id) {
+          cc_selector.update_conflict_stats(key_to_shard(row->get_primary_key()));
+        }
+      }
       rc = Abort;
       return rc;
     }
@@ -111,6 +125,12 @@ RC TxnManager::validate_silo() {
     Access* access = txn->accesses[write_set[i]];
     bool success = access->orig_row->manager->validate(access->tid, true);  //时间戳版本正确即可
     if (!success) {
+      for (uint64_t i = 0; i < txn->row_cnt; i++) {
+        row_t* row = txn->accesses[i]->orig_row;
+        if (key_to_part(row->get_primary_key()) == g_node_id) {
+          cc_selector.update_conflict_stats(key_to_shard(row->get_primary_key()));
+        }
+      }
       rc = Abort;
       return rc;
     }

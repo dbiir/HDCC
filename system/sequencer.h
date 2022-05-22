@@ -47,6 +47,9 @@ typedef struct qlite_ll_entry {
 	uint64_t batch_send_time;
 	qlite_ll_entry * next;
 	qlite_ll_entry * prev;
+#if CC_ALG == MIXED_LOCK
+	uint64_t start_txn_id;
+#endif
 } qlite_ll;
 
 class Sequencer {

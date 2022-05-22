@@ -64,6 +64,7 @@ RC CalvinLockThread::run() {
 
 		txn_man =
 				txn_table.get_transaction_manager(get_thd_id(), msg->get_txn_id(), msg->get_batch_id());
+		txn_man->algo = msg->algo;
 		while (!txn_man->unset_ready()) {
 		}
 		assert(ISSERVERN(msg->get_return_id()));
@@ -86,11 +87,7 @@ RC CalvinLockThread::run() {
 		}
 
 		if(rc == RCOK) {
-			#if CC_ALG == MIXED_LOCK
-				work_queue.calvin_enqueue(_thd_id, msg, false);
-			#else
 				work_queue.enqueue(_thd_id,msg,false);
-			#endif
 		}
 		txn_man->set_ready();
 

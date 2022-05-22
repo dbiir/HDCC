@@ -50,6 +50,10 @@ uint64_t key_to_part(uint64_t key) {
 		return 0;
 }
 
+uint64_t key_to_shard(uint64_t key) {
+  return key / g_data_shard_size;
+}
+
 uint64_t merge_idx_key(UInt64 key_cnt, UInt64 * keys) {
 	UInt64 len = 64 / key_cnt;
 	UInt64 key = 0;

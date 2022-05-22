@@ -72,7 +72,7 @@ class QryPool {
 public:
   void init(Workload * wl, uint64_t size);
   void get(uint64_t thd_id, BaseQuery *& item);
-  void put(uint64_t thd_id, BaseQuery * items);
+  void put(uint64_t thd_id, BaseQuery * items, int algo);
   void free_all();
 
 private:
