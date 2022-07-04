@@ -232,7 +232,12 @@ bool Row_mixed_lock::validate(ts_t tid, bool in_write_set) {
         return tid == _tid;
 
   //读验证
-  if (owners != NULL && owners->type == LOCK_EX) return false;  // 已加写锁
+  pthread_mutex_lock(_latch);
+  if (owners != NULL && owners->type == LOCK_EX) {
+    pthread_mutex_unlock(_latch);
+    return false;  // 已加写锁
+  }
+  pthread_mutex_unlock(_latch);
 
   bool valid = (tid == _tid);  // 时间戳校对，是否数据被修改过导致版本变化
   return valid;

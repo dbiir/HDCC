@@ -538,6 +538,7 @@ RC WorkerThread::process_rfin(Message * msg) {
        CC_ALG == DLI_OCC || CC_ALG == SILO || CC_ALG == MIXED_LOCK) {
     msg_queue.enqueue(get_thd_id(), Message::create_message(txn_man, RACK_FIN),
                       GET_NODE_ID(msg->get_txn_id()));
+  }
   release_txn_man();
 
   return RCOK;
