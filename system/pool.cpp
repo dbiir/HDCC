@@ -187,7 +187,11 @@ void QryPool::init(Workload * wl, uint64_t size) {
 #endif
     m_qry->init();
     qry = m_qry;
+#if CC_ALG == MIXED_LOCK
     put(thd_id,qry,0);
+#else
+    put(thd_id,qry);
+#endif
     }
   }
 }
@@ -221,10 +225,18 @@ void QryPool::get(uint64_t thd_id, BaseQuery *& item) {
   DEBUG_R("get 0x%lx\n",(uint64_t)item);
 }
 
+#if CC_ALG == MIXED_LOCK
 void QryPool::put(uint64_t thd_id, BaseQuery * item, int algo) {
+#else
+void QryPool::put(uint64_t thd_id, BaseQuery * item) {
+#endif
   assert(item);
 #if WORKLOAD == YCSB
+#if CC_ALG == MIXED_LOCK
   ((YCSBQuery*)item)->reset(algo);
+#else
+  ((YCSBQuery*)item)->reset();
+#endif
 #elif WORKLOAD == TPCC
   ((TPCCQuery*)item)->reset();
 #elif WORKLOAD == PPS

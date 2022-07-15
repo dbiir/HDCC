@@ -422,7 +422,11 @@ void TxnManager::reset() {
 
 void TxnManager::release() {
 	uint64_t prof_starttime = get_sys_clock();
+#if CC_ALG == MIXED_LOCK
 	qry_pool.put(get_thd_id(),query, algo);
+#else
+	qry_pool.put(get_thd_id(),query);
+#endif
 	INC_STATS(get_thd_id(),mtx[0],get_sys_clock()-prof_starttime);
 	query = NULL;
 	prof_starttime = get_sys_clock();
@@ -454,7 +458,11 @@ void TxnManager::release() {
 
 void TxnManager::reset_query() {
 #if WORKLOAD == YCSB
+#if CC_ALG == MIXED_LOCK
 	((YCSBQuery*)query)->reset(algo);
+#else
+	((YCSBQuery*)query)->reset();
+#endif
 #elif WORKLOAD == TPCC
 	((TPCCQuery*)query)->reset();
 #elif WORKLOAD == PPS
@@ -763,10 +771,12 @@ void TxnManager::commit_stats() {
 	return;
 	#endif
 
-	if (CC_ALG == MIXED_LOCK && algo == CALVIN)
+#if CC_ALG == MIXED_LOCK
+	if (algo == CALVIN)
 	{
 		return;
 	}
+#endif
 	INC_STATS_ARR(get_thd_id(),start_abort_commit_latency, timespan_short);
 	INC_STATS_ARR(get_thd_id(),last_start_commit_latency, timespan_short);
 	INC_STATS_ARR(get_thd_id(),first_start_commit_latency, timespan_long);
@@ -877,10 +887,12 @@ void TxnManager::cleanup_row(RC rc, uint64_t rid) {
 			version = orig_r->return_row(rc, type, this, txn->accesses[rid]->data);
 		}
 #else
-		if (CC_ALG == MIXED_LOCK && algo == CALVIN) {
+#if CC_ALG == MIXED_LOCK
+		if (algo == CALVIN) {
 		} else {
 			version = orig_r->return_row(rc, type, this, txn->accesses[rid]->data);
 		}
+#endif
 #endif
 	}
 #endif
@@ -906,9 +918,11 @@ void TxnManager::cleanup_row(RC rc, uint64_t rid) {
 #endif
 
 #if CC_ALG != SILO
-	if (CC_ALG == MIXED_LOCK && algo == SILO) {
+#if CC_ALG == MIXED_LOCK
+	if (algo == SILO) {
 		return;
 	}
+#endif
   txn->accesses[rid]->data = NULL;
 #endif
 }

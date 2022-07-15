@@ -72,7 +72,11 @@ class QryPool {
 public:
   void init(Workload * wl, uint64_t size);
   void get(uint64_t thd_id, BaseQuery *& item);
+#if CC_ALG == MIXED_LOCK
   void put(uint64_t thd_id, BaseQuery * items, int algo);
+#else
+  void put(uint64_t thd_id, BaseQuery * items);
+#endif
   void free_all();
 
 private:

@@ -96,15 +96,23 @@ void YCSBQuery::release_requests() {
 
 }
 
+#if CC_ALG == MIXED_LOCK
 void YCSBQuery::reset(int algo) {
 	BaseQuery::clear();
-#if CC_ALG != CALVIN
 	if (algo != CALVIN) {
 		release_requests();
 	}
+	requests.clear();
+}
+#else
+void YCSBQuery::reset() {
+	BaseQuery::clear();
+#if CC_ALG != CALVIN
+	release_requests();
 #endif
 	requests.clear();
 }
+#endif
 
 void YCSBQuery::release() {
 	BaseQuery::release();

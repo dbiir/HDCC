@@ -206,7 +206,9 @@ Message * Message::create_message(RemReqType rtype) {
   msg->rtype = rtype;
   msg->txn_id = UINT64_MAX;
   msg->batch_id = UINT64_MAX;
+#if CC_ALG == MIXED_LOCK
   msg->algo = 0;
+#endif
   msg->return_node_id = g_node_id;
   msg->wq_time = 0;
   msg->mq_time = 0;

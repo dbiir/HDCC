@@ -419,7 +419,9 @@ RC WorkerThread::run() {
 
     if((msg->rtype != CL_QRY && msg->rtype != CL_QRY_O) || CC_ALG == CALVIN) {
       txn_man = get_transaction_manager(msg);
+#if CC_ALG == MIXED_LOCK
       txn_man->algo = msg->algo;
+#endif
 
       if (CC_ALG != CALVIN && IS_LOCAL(txn_man->get_txn_id())) {
         if (msg->rtype != RTXN_CONT &&
@@ -466,7 +468,8 @@ RC WorkerThread::run() {
       }
       txn_man->register_thread(this);
     }
-    if (msg->rtype == CL_QRY && CC_ALG == MIXED_LOCK) {
+#if CC_ALG == MIXED_LOCK
+    if (msg->rtype == CL_QRY) {
       txn_man = get_transaction_manager(msg);
       txn_man->algo = msg->algo;
       if (txn_man->algo == CALVIN) {
@@ -482,6 +485,7 @@ RC WorkerThread::run() {
       }
       txn_man->register_thread(this);   
     }
+#endif
 #ifdef FAKE_PROCESS
     fakeprocess(msg);
 #else
@@ -498,11 +502,15 @@ RC WorkerThread::run() {
     // delete message
     ready_starttime = get_sys_clock();
 #if CC_ALG != CALVIN
-  if (CC_ALG == MIXED_LOCK && msg->algo == CALVIN) {
+#if CC_ALG == MIXED_LOCK
+  if (msg->algo == CALVIN) {
   } else {
+#endif
     msg->release();
     delete msg;
+#if CC_ALG == MIXED_LOCK
   }
+#endif
 #endif
     INC_STATS(get_thd_id(),worker_release_msg_time,get_sys_clock() - ready_starttime);
 
@@ -804,18 +812,24 @@ RC WorkerThread::process_rtxn(Message * msg) {
       msg->txn_id=((DAClientQueryMessage*)msg)->trans_id;
       txn_id=((DAClientQueryMessage*)msg)->trans_id;
     #else
-      if (CC_ALG == MIXED_LOCK && msg->algo == SILO) {
+    #if CC_ALG == MIXED_LOCK
+      if (msg->algo == SILO) {
         txn_id = msg->txn_id;
       } else {
         txn_id = get_next_txn_id();
         msg->txn_id = txn_id;
       }
     #endif
+      txn_id = get_next_txn_id();
+      msg->txn_id = txn_id;
+    #endif
     // Put txn in txn_table
     if (!txn_man)
     {
       txn_man = txn_table.get_transaction_manager(get_thd_id(),txn_id,0);
-      txn_man->algo = msg->algo;
+      #if CC_ALG == MIXED_LOCK
+        txn_man->algo = msg->algo;
+      #endif
       txn_man->register_thread(this);
     }
     uint64_t ready_starttime = get_sys_clock();

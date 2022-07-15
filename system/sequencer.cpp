@@ -60,7 +60,7 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 
 #if CC_ALG == MIXED_LOCK
 	uint64_t id = (msg->get_txn_id() - en->start_txn_id) / g_node_cnt;
-#elif CC_ALG == CALVIN
+#else
 	uint64_t id = msg->get_txn_id() / g_node_cnt;
 #endif
 
@@ -230,7 +230,7 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 			en->max_size *= 2;
 			en->list = (qlite *) mem_allocator.realloc(en->list,sizeof(qlite) * en->max_size);
 		}
-#elif CC_ALG == CALVIN
+#else
 		next_txn_id++;
 		uint64_t id = txn_id / g_node_cnt;
 #endif
