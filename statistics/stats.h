@@ -325,6 +325,12 @@ public:
   double dta_range;
   uint64_t dta_commit_cnt;
 
+  //MIXED_LOCK
+  uint64_t mixed_lock_silo_cnt;
+  uint64_t mixed_lock_silo_local_cnt;
+  uint64_t mixed_lock_calvin_cnt;
+  uint64_t mixed_lock_calvin_local_cnt;
+
   // Logging
   uint64_t log_write_cnt;
   double log_write_time;

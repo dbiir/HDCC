@@ -343,6 +343,12 @@ void Stats_thd::clear() {
   wkdb_range=0;
   wkdb_commit_cnt=0;
 
+  //MIXED_LOCK
+  mixed_lock_silo_cnt=0;
+  mixed_lock_silo_local_cnt=0;
+  mixed_lock_calvin_cnt=0;
+  mixed_lock_calvin_local_cnt=0;
+
   // Logging
   log_write_cnt=0;
   log_write_time=0;
@@ -1082,6 +1088,14 @@ void Stats_thd::print(FILE * outf, bool prog) {
           dta_cs_wait_time / BILLION, dta_cs_wait_avg / BILLION, dta_case1_cnt, dta_case2_cnt,
           dta_case3_cnt, dta_case4_cnt, dta_case5_cnt, dta_range / BILLION, dta_commit_cnt,
           dta_commit_avg, dta_range_avg);
+  //MIXED_LOCK
+  fprintf(outf,
+          ",mixed_lock_calvin_cnt=%ld"
+          ",mixed_lock_calvin_local_cnt=%ld"
+          ",mixed_lock_silo_cnt=%ld"
+          ",mixed_lock_silo_local_cnt=%ld",
+          mixed_lock_calvin_cnt, mixed_lock_calvin_local_cnt, mixed_lock_silo_cnt,
+          mixed_lock_silo_local_cnt);
   // Logging
   double log_write_avg_time = 0;
   if (log_write_cnt > 0) log_write_avg_time = log_write_time / log_write_cnt;
@@ -1576,6 +1590,12 @@ void Stats_thd::combine(Stats_thd * stats) {
   wkdb_case5_cnt+=stats->wkdb_case5_cnt;
   wkdb_range+=stats->wkdb_range;
   wkdb_commit_cnt+=stats->wkdb_commit_cnt;
+
+  //MIXED_LOCK
+  mixed_lock_calvin_cnt+=stats->mixed_lock_calvin_cnt;
+  mixed_lock_calvin_local_cnt+=stats->mixed_lock_calvin_local_cnt;
+  mixed_lock_silo_cnt+=stats->mixed_lock_silo_cnt;
+  mixed_lock_silo_local_cnt+=stats->mixed_lock_silo_local_cnt;
 
   // Logging
   log_write_cnt+=stats->log_write_cnt;

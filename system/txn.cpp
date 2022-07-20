@@ -739,6 +739,9 @@ void TxnManager::commit_stats() {
 			// INC_STATS(get_thd_id(), txn_run_time, timespan_long);
 			// INC_STATS(get_thd_id(),multi_part_txn_run_time,timespan_long);
 			// INC_STATS(get_thd_id(),single_part_txn_run_time,timespan_long);
+			INC_STATS(get_thd_id(), mixed_lock_calvin_cnt, 1);
+		} else {
+			INC_STATS(get_thd_id(), mixed_lock_silo_cnt, 1);
 		}
 		INC_STATS(get_thd_id(),remote_txn_commit_cnt,1);
 		txn_stats.commit_stats(get_thd_id(), get_txn_id(), get_batch_id(), timespan_long,
@@ -755,6 +758,15 @@ void TxnManager::commit_stats() {
 
 	INC_STATS(get_thd_id(),txn_cnt,1);
 	INC_STATS(get_thd_id(),local_txn_commit_cnt,1);
+#if CC_ALG ==MIXED_LOCK
+	if (algo == CALVIN) {
+		INC_STATS(get_thd_id(), mixed_lock_calvin_cnt, 1);
+		INC_STATS(get_thd_id(), mixed_lock_calvin_local_cnt, 1);
+	} else {
+		INC_STATS(get_thd_id(), mixed_lock_silo_cnt, 1);
+		INC_STATS(get_thd_id(), mixed_lock_silo_local_cnt, 1);
+	}
+#endif
 	INC_STATS(get_thd_id(), txn_run_time, timespan_long);
 	if(query->partitions_touched.size() > 1) {
 		INC_STATS(get_thd_id(),multi_part_txn_cnt,1);
