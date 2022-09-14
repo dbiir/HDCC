@@ -254,7 +254,7 @@ public:
   void init();
   void release();
   
-  Array<uint16_t> conflict_statics;
+  Array<bool> conflict_statics;
 };
 
 class ClientResponseMessage : public Message {

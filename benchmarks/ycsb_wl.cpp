@@ -75,7 +75,9 @@ YCSBWorkload::key_to_part(uint64_t key) {
 
 int
 YCSBWorkload::key_to_shard(uint64_t key) {
-  return key / g_data_shard_size;
+	int node_num=key_to_part(key);
+	int shard_number_in_node=key/(g_node_cnt*g_data_shard_size);
+	return shard_number_in_node*g_node_cnt+node_num;
 }
 
 RC YCSBWorkload::init_table() {

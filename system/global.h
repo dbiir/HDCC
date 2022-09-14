@@ -287,7 +287,7 @@ extern UInt32 g_calvin_thread_cnt; // number of calvin threads in the thread poo
 extern UInt64 g_data_shard_size; // number of tuples in each data shard
 extern uint16_t g_lower_bound;
 extern uint16_t g_upper_bound;
-extern UInt64 g_shard_num;
+extern UInt64 g_total_shard_num;
 extern UInt64 g_conflict_send_interval;
 
 // TICTOC

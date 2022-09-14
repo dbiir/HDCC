@@ -18,6 +18,10 @@
 #include "abort_queue.h"
 #include "message.h"
 #include "work_queue.h"
+#if CC_ALG == MIXED_LOCK
+#include "cc_selector.h"
+#include "global.h"
+#endif
 
 void AbortQueue::init() { pthread_mutex_init(&mtx, NULL); }
 
@@ -64,13 +68,19 @@ void AbortQueue::process(uint64_t thd_id) {
             simulation->seconds_from_start(starttime));
       INC_STATS(thd_id,abort_queue_penalty_extra,starttime - entry->penalty_end);
       INC_STATS(thd_id,abort_queue_dequeue_cnt,1);
+#if CC_ALG == MIXED_LOCK
+      TxnManager * txn = txn_table.get_transaction_manager(thd_id, entry->txn_id, 0);
+      //Because we create a new message instead of using old message(which is already destroyed), it may lost some stats.
+      Message * msg = Message::create_message(CL_QRY);
+      msg->copy_from_txn(txn);
+      msg->return_node_id = txn->client_id;
+      work_queue.sequencer_enqueue(thd_id, msg);
+#else
       Message * msg = Message::create_message(RTXN);
       msg->txn_id = entry->txn_id;
-#if CC_ALG == MIXED_LOCK
-      msg->algo = SILO;
-#endif
       work_queue.enqueue(thd_id,msg,false);
       //entry = queue.top();
+#endif
       DEBUG_M("AbortQueue::dequeue entry free\n");
       mem_allocator.free(entry,sizeof(abort_entry));
     } else {

@@ -9,7 +9,7 @@ class ConflictThread : public Thread {
 public:
   RC run();
   void setup();
-  void send_msg(Message *msg);
+  void send_msg();
   void recv_msg();
 };
 

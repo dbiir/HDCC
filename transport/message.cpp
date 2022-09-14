@@ -1482,7 +1482,7 @@ uint64_t ConflictStaticsMessage::get_size() {
 }
 
 void ConflictStaticsMessage::init(){
-  conflict_statics.init(g_shard_num);
+  conflict_statics.init(g_total_shard_num);
 }
 void ConflictStaticsMessage::release(){
   conflict_statics.release();
