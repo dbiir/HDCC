@@ -16,6 +16,8 @@ public:
     void update_ccselector();
     Message* pack_msg();
     void process_conflict_msg(ConflictStaticsMessage *msg);
+    uint64_t get_total_conflict();
+    uint64_t get_highest_conflict();
 private:
     uint64_t *pstats;
     bool *is_high_conflict;

@@ -66,3 +66,19 @@ void CCSelector::process_conflict_msg(ConflictStaticsMessage *msg){
     }
     msg->release();//msg life ends here
 }
+
+uint64_t CCSelector::get_total_conflict() {
+    uint64_t sum = 0;
+    for (uint64_t i = 0;; i++) {
+        uint64_t shard=i*g_node_cnt+g_node_id;
+        if(shard>=g_total_shard_num){
+            break;
+        }
+        sum += pstats[shard];
+    }
+    return sum;
+}
+
+uint64_t CCSelector::get_highest_conflict() {
+    return pstats[g_node_id];
+}

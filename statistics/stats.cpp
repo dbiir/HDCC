@@ -52,6 +52,9 @@ void Stats_thd::init(uint64_t thd_id) {
   DEBUG_M("Stats_thd::init work_queue_dtx_cnt alloc\n");
   work_queue_dtx_cnt= (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
 
+  row_conflict_total_cnt = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
+  row_conflict_highest_cnt = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
+
   DEBUG_M("Stats_thd::init mtx alloc\n");
   mtx= (double *) mem_allocator.align_alloc(sizeof(double) * 40);
 
@@ -235,6 +238,12 @@ void Stats_thd::clear() {
   msg_unpack_time=0;
   mbuf_send_intv_time=0;
   msg_copy_output_time=0;
+
+// Conflict statistics thread
+  for (uint64_t i = 0; i < SECOND; i++) {
+    row_conflict_total_cnt[i]=0;
+    row_conflict_highest_cnt[i]=0;
+  }
 
   // Concurrency control, general
   cc_conflict_cnt=0;
@@ -923,6 +932,23 @@ void Stats_thd::print(FILE * outf, bool prog) {
           mbuf_send_intv_time / BILLION, mbuf_send_intv_time_avg / BILLION,
           msg_copy_output_time / BILLION);
 
+  //Conflict statistics thread
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf,
+      ",row_conflict_total_cnt%lu=%lu"
+      ,i
+      ,row_conflict_total_cnt[i]
+    );
+  }
+
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf,
+      ",row_conflict_highest_cnt%lu=%lu"
+      ,i
+      ,row_conflict_highest_cnt[i]
+    );
+  }
+
   // Concurrency control, general
   fprintf(outf,
     ",cc_conflict_cnt=%ld"
@@ -1489,6 +1515,12 @@ void Stats_thd::combine(Stats_thd * stats) {
   msg_unpack_time+=stats->msg_unpack_time;
   mbuf_send_intv_time+=stats->mbuf_send_intv_time;
   msg_copy_output_time+=stats->msg_copy_output_time;
+
+  //Conflict statistics thread
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    row_conflict_total_cnt[i] += stats->row_conflict_total_cnt[i];
+    row_conflict_highest_cnt[i] += stats->row_conflict_highest_cnt[i];
+  }
 
   // Concurrency control, general
   cc_conflict_cnt+=stats->cc_conflict_cnt;

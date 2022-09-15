@@ -212,6 +212,10 @@ public:
   double mbuf_send_intv_time;
   double msg_copy_output_time;
 
+  // Conflict statistics thread
+  uint64_t * row_conflict_total_cnt;
+  uint64_t * row_conflict_highest_cnt;
+
   // Concurrency control, general
   uint64_t cc_conflict_cnt;
   uint64_t txn_wait_cnt;

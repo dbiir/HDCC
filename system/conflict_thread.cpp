@@ -54,10 +54,11 @@ RC ConflictThread::run() {
 //for single node
         uint64_t now_time = get_sys_clock();
         if (now_time - last_send_time > g_conflict_send_interval) {
+            INC_STATS(_thd_id, row_conflict_total_cnt[loop_round], cc_selector.get_total_conflict());
+            INC_STATS(_thd_id, row_conflict_highest_cnt[loop_round], cc_selector.get_highest_conflict());
             cc_selector.update_ccselector();
             loop_round++;
             last_send_time = now_time;
-            printf("loop_round:%d\n",loop_round);
         }
     }
     printf("FINISH %ld:%ld\n",_node_id,_thd_id);
