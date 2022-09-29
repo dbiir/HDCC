@@ -24,11 +24,22 @@
 struct abort_entry {
   uint64_t penalty_end;
   uint64_t txn_id;
+#if CC_ALG == MIXED_LOCK
+  uint64_t batch_id;
+#endif
   abort_entry() {}
+#if CC_ALG == MIXED_LOCK
+  abort_entry(uint64_t penalty_end, uint64_t txn_id, uint64_t batch_id) {
+    this->penalty_end = penalty_end;
+    this->txn_id = txn_id;
+    this->batch_id = batch_id;
+  }
+#else
   abort_entry(uint64_t penalty_end, uint64_t txn_id) {
     this->penalty_end = penalty_end;
     this->txn_id = txn_id;
   }
+#endif
 };
 
 
@@ -42,7 +53,11 @@ struct CompareAbortEntry {
 class AbortQueue {
 public:
   void init();
+#if CC_ALG == MIXED_LOCK
+  uint64_t enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t batch_id, uint64_t abort_cnt);
+#else
   uint64_t enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t abort_cnt);
+#endif
   void process(uint64_t thd_id);
 private:
   std::priority_queue<abort_entry*,std::vector<abort_entry*>,CompareAbortEntry> queue;
