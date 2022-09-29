@@ -21,6 +21,7 @@
 #if CC_ALG == MIXED_LOCK
 #include "cc_selector.h"
 #include "global.h"
+#include "txn.h"
 #endif
 
 void AbortQueue::init() { pthread_mutex_init(&mtx, NULL); }

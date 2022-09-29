@@ -90,12 +90,14 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 #endif
 #elif WORKLOAD == TPCC
 			TPCCClientQueryMessage* cl_msg = (TPCCClientQueryMessage*)wait_list[id].msg;
+#if CC_ALG==CALVIN
 			if(cl_msg->txn_type == TPCC_NEW_ORDER) {
 					for(uint64_t i = 0; i < cl_msg->items.size(); i++) {
 							DEBUG_M("Sequencer::process_ack() items free\n");
 							mem_allocator.free(cl_msg->items[i],sizeof(Item_no));
 					}
 			}
+#endif
 #elif WORKLOAD == PPS
 			PPSClientQueryMessage* cl_msg = (PPSClientQueryMessage*)wait_list[id].msg;
 

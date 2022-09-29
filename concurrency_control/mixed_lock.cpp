@@ -53,14 +53,14 @@ RC TxnManager::validate_silo() {
   if (_pre_abort) {
     for (uint64_t i = 0; i < wr_cnt; i++) {  // pre_abort
       row_t* row = txn->accesses[write_set[i]]->orig_row;
-      if (row->manager->_tid != get_txn_id()) {   //版本应该为当前事务id
+      if (row->manager->_tid != txn->accesses[write_set[i]]->tid) {   //版本应该为当前事务id
         rc = Abort;
         return rc;
       }
     }
     for (uint64_t i = 0; i < txn->row_cnt - wr_cnt; i++) {
       Access* access = txn->accesses[read_set[i]];
-      if (access->orig_row->manager->_tid != get_txn_id()) {
+      if (access->orig_row->manager->_tid != txn->accesses[read_set[i]]->tid) {
         rc = Abort;
         return rc;
       }

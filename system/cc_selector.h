@@ -4,8 +4,6 @@
 #include "global.h"
 #include "message.h"
 #include "helper.h"
-#include "ycsb_query.h"
-#include "ycsb.h"
 
 class CCSelector {
 public:
@@ -19,8 +17,24 @@ public:
     uint64_t get_total_conflict();
     uint64_t get_highest_conflict();
 private:
-    uint64_t *pstats;
-    bool *is_high_conflict;
+    uint64_t *pstats;   //冲突统计信息指针
+    bool *is_high_conflict; //是否为高冲突分区
+#if WORKLOAD == TPCC
+    enum KeyRange{
+        WAREHOUSE_START = 1,
+        WAREHOUSE_END   = 1,
+        DISTRICT_START  = 11,
+        DISTRICT_END    = 20,
+        CUST_BY_ID_START    = 33001,
+        CUST_BY_ID_END      = 63000,
+        CUST_BY_NAME_START  = 1569803,
+        CUST_BY_NAME_END    = 477324308,
+        STOCK_START         = 100001,
+        STOCK_END           = 200000,
+        ITEM_START          = 200001,
+        ITEM_END            = 300000
+    };
+#endif
 };
 
 #endif
