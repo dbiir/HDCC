@@ -816,12 +816,10 @@ RC WorkerThread::process_rtxn(Message * msg) {
       if (msg->algo == SILO) {
         txn_id = msg->txn_id;
       } else {
-        txn_id = get_next_txn_id();
-        msg->txn_id = txn_id;
-      }
-    #endif
+    #else
       txn_id = get_next_txn_id();
       msg->txn_id = txn_id;
+    #endif
     #endif
     // Put txn in txn_table
     if (!txn_man)

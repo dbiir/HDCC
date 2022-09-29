@@ -218,8 +218,8 @@ UInt32 g_seq_thread_cnt = SEQ_THREAD_CNT;
 // MIXED_LOCK
 UInt32 g_calvin_thread_cnt = CALVIN_THREAD_CNT;
 UInt64 g_data_shard_size = SHARD_SIZE;
-uint16_t g_lower_bound=LOWER_BOUND;
-uint16_t g_upper_bound=UPPER_BOUND;
+uint64_t g_lower_bound=LOWER_BOUND;
+uint64_t g_upper_bound=UPPER_BOUND;
 UInt64 g_total_shard_num=g_synth_table_size/g_data_shard_size+1;//+1 to prevent from overflow
 UInt64 g_conflict_send_interval = CONFLICT_SEND_INTERVAL;
 
