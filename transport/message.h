@@ -43,6 +43,7 @@ public:
   uint64_t batch_id;
   uint64_t return_node_id;
 #if CC_ALG == MIXED_LOCK
+  uint64_t original_return_node_id;
   int algo;
 #endif
 
@@ -191,6 +192,9 @@ public:
 #endif
 #if CC_ALG == SILO
   uint64_t max_tid;
+#endif
+#if CC_ALG == MIXED_LOCK
+  bool isCommit;
 #endif
 
   // For Calvin PPS: part keys from secondary lookup for sequencer response

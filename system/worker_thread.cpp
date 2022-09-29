@@ -293,7 +293,14 @@ void WorkerThread::commit() {
 
   // Send result back to client
 #if !SERVER_GENERATE_QUERIES
+#if CC_ALG != MIXED_LOCK
   msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,CL_RSP),txn_man->client_id);
+#endif
+#endif
+#if CC_ALG == MIXED_LOCK
+  //Send ACK to sequencer to cleanup
+  assert(txn_man->return_id == g_node_id);
+  work_queue.sequencer_enqueue(_thd_id,Message::create_message(txn_man,CALVIN_ACK));
 #endif
   // remove txn from pool
   release_txn_man();
@@ -304,6 +311,12 @@ void WorkerThread::abort() {
   DEBUG("ABORT %ld -- %f\n", txn_man->get_txn_id(),
         (double)get_sys_clock() - run_starttime / BILLION);
   // TODO: TPCC Rollback here
+
+#if CC_ALG == MIXED_LOCK
+  //Send ACK to sequencer to cleanup
+  assert(txn_man->return_id == g_node_id);
+  work_queue.sequencer_enqueue(_thd_id,Message::create_message(txn_man,CALVIN_ACK));
+#endif
 
   ++txn_man->abort_cnt;
   txn_man->reset();
@@ -329,15 +342,19 @@ void WorkerThread::abort() {
   INC_STATS(get_thd_id(), trans_abort_count, 1);
   INC_STATS(get_thd_id(), trans_total_count, 1);
   #if WORKLOAD != DA //actually DA do not need real abort. Just count it and do not send real abort msg.
+  #if CC_ALG == MIXED_LOCK
+  uint64_t penalty =
+      abort_queue.enqueue(get_thd_id(), txn_man->get_txn_id(), txn_man->get_batch_id(), txn_man->get_abort_cnt());
+  #else
   uint64_t penalty =
       abort_queue.enqueue(get_thd_id(), txn_man->get_txn_id(), txn_man->get_abort_cnt());
-
+  #endif
   txn_man->txn_stats.total_abort_time += penalty;
   #endif
 }
 
 TxnManager * WorkerThread::get_transaction_manager(Message * msg) {
-#if CC_ALG == CALVIN
+#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
   TxnManager* local_txn_man =
       txn_table.get_transaction_manager(get_thd_id(), msg->get_txn_id(), msg->get_batch_id());
 #else
@@ -804,6 +821,7 @@ uint64_t WorkerThread::get_next_txn_id() {
 RC WorkerThread::process_rtxn(Message * msg) {
   RC rc = RCOK;
   uint64_t txn_id = UINT64_MAX;
+  uint64_t batch_id = 0;
   bool is_cl_o = msg->get_rtype() == CL_QRY_O;
   if(msg->get_rtype() == CL_QRY || msg->get_rtype() == CL_QRY_O) {
     // This is a new transaction
@@ -814,19 +832,20 @@ RC WorkerThread::process_rtxn(Message * msg) {
     #else
     #if CC_ALG == MIXED_LOCK
       if (msg->algo == SILO) {
+        batch_id = msg->batch_id;
         txn_id = msg->txn_id;
       } else {
-        txn_id = get_next_txn_id();
-        msg->txn_id = txn_id;
+        assert(false);
       }
-    #endif
+    #else
       txn_id = get_next_txn_id();
       msg->txn_id = txn_id;
+    #endif
     #endif
     // Put txn in txn_table
     if (!txn_man)
     {
-      txn_man = txn_table.get_transaction_manager(get_thd_id(),txn_id,0);
+      txn_man = txn_table.get_transaction_manager(get_thd_id(),txn_id,batch_id);
       #if CC_ALG == MIXED_LOCK
         txn_man->algo = msg->algo;
       #endif

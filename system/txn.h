@@ -203,6 +203,7 @@ public:
 
 #if CC_ALG == MIXED_LOCK
 	int algo; 	//calvin or silo
+	uint64_t original_return_id;
 	uint64_t        num_locks;
 	int             write_set[100];
     int*            read_set;
@@ -335,7 +336,7 @@ protected:
 #endif
 
 #if CC_ALG == MIXED_LOCK
-	bool 			_pre_abort;
+	bool 			_pre_abort=false;
 	RC				validate_silo();
 #endif
 

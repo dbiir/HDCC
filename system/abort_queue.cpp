@@ -26,7 +26,11 @@
 
 void AbortQueue::init() { pthread_mutex_init(&mtx, NULL); }
 
+#if CC_ALG == MIXED_LOCK
+uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t batch_id, uint64_t abort_cnt) {
+#else
 uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t abort_cnt) {
+#endif
   uint64_t starttime = get_sys_clock();
   uint64_t penalty = g_abort_penalty;
 #if BACKOFF
@@ -38,6 +42,9 @@ uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t abort_cn
   abort_entry * entry = (abort_entry*)mem_allocator.alloc(sizeof(abort_entry));
   entry->penalty_end = penalty;
   entry->txn_id = txn_id;
+#if CC_ALG == MIXED_LOCK
+  entry->batch_id = batch_id;
+#endif
   uint64_t mtx_time_start = get_sys_clock();
   pthread_mutex_lock(&mtx);
   INC_STATS(thd_id,mtx[0],get_sys_clock() - mtx_time_start);
@@ -70,11 +77,11 @@ void AbortQueue::process(uint64_t thd_id) {
       INC_STATS(thd_id,abort_queue_penalty_extra,starttime - entry->penalty_end);
       INC_STATS(thd_id,abort_queue_dequeue_cnt,1);
 #if CC_ALG == MIXED_LOCK
-      TxnManager * txn = txn_table.get_transaction_manager(thd_id, entry->txn_id, 0);
+      TxnManager * txn = txn_table.get_transaction_manager(thd_id, entry->txn_id, entry->batch_id);
       //Because we create a new message instead of using old message(which is already destroyed), it may lost some stats.
       Message * msg = Message::create_message(CL_QRY);
       msg->copy_from_txn(txn);
-      msg->return_node_id = txn->client_id;
+      msg->return_node_id = txn->original_return_id;
       work_queue.sequencer_enqueue(thd_id, msg);
 #else
       Message * msg = Message::create_message(RTXN);

@@ -235,6 +235,7 @@ uint64_t Message::mget_size() {
 #endif
 #if CC_ALG == MIXED_LOCK
   size += sizeof(uint64_t);
+  size += sizeof(uint64_t);
   size += sizeof(int);
 #endif
   // for stats, send message queue time
@@ -252,11 +253,17 @@ void Message::mcopy_from_txn(TxnManager * txn) {
   batch_id = txn->get_batch_id();
 #elif CC_ALG == MIXED_LOCK
   batch_id = txn->get_batch_id();
+  original_return_node_id = txn->original_return_id;
   algo = txn->algo;
 #endif
 }
 
-void Message::mcopy_to_txn(TxnManager* txn) { txn->return_id = return_node_id; }
+void Message::mcopy_to_txn(TxnManager* txn) {
+  txn->return_id = return_node_id;
+#if CC_ALG == MIXED_LOCK
+  txn->original_return_id = original_return_node_id;
+#endif
+}
 
 void Message::mcopy_from_buf(char * buf) {
   uint64_t ptr = 0;
@@ -266,6 +273,7 @@ void Message::mcopy_from_buf(char * buf) {
   COPY_VAL(batch_id,buf,ptr);
 #elif CC_ALG == MIXED_LOCK
   COPY_VAL(batch_id,buf,ptr);
+  COPY_VAL(original_return_node_id,buf,ptr);
   COPY_VAL(algo,buf,ptr);
 #endif
   COPY_VAL(mq_time,buf,ptr);
@@ -294,6 +302,7 @@ void Message::mcopy_to_buf(char * buf) {
   COPY_BUF(buf,batch_id,ptr);
 #elif CC_ALG == MIXED_LOCK
   COPY_BUF(buf,batch_id,ptr);
+  COPY_BUF(buf,original_return_node_id,ptr);
   COPY_BUF(buf,algo,ptr);
 #endif
   COPY_BUF(buf,mq_time,ptr);
@@ -1199,6 +1208,9 @@ uint64_t AckMessage::get_size() {
 #if CC_ALG == SILO
   size += sizeof(uint64_t);
 #endif
+#if CC_ALG == MIXED_LOCK
+  size += sizeof(bool);
+#endif
 #if WORKLOAD == PPS && CC_ALG == CALVIN
   size += sizeof(size_t);
   size += sizeof(uint64_t) * part_keys.size();
@@ -1224,6 +1236,9 @@ void AckMessage::copy_from_txn(TxnManager * txn) {
 #if CC_ALG == DTA || CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3
   lower = dta_time_table.get_lower(txn->get_thd_id(), txn->get_txn_id());
   upper = dta_time_table.get_upper(txn->get_thd_id(), txn->get_txn_id());
+#endif
+#if CC_ALG == MIXED_LOCK
+  isCommit = !txn->aborted;
 #endif
 
 #if WORKLOAD == PPS && CC_ALG == CALVIN
@@ -1253,6 +1268,9 @@ void AckMessage::copy_from_buf(char * buf) {
 #if CC_ALG == SILO
   COPY_VAL(max_tid,buf,ptr);
 #endif
+#if CC_ALG == MIXED_LOCK
+  COPY_VAL(isCommit,buf,ptr);
+#endif
 #if WORKLOAD == PPS && CC_ALG == CALVIN
 
   size_t size;
@@ -1277,6 +1295,9 @@ void AckMessage::copy_to_buf(char * buf) {
 #endif
 #if CC_ALG == SILO
   COPY_BUF(buf,max_tid,ptr);
+#endif
+#if CC_ALG == MIXED_LOCK
+  COPY_BUF(buf,isCommit,ptr);
 #endif
 #if WORKLOAD == PPS && CC_ALG == CALVIN
 
