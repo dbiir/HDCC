@@ -293,14 +293,7 @@ void WorkerThread::commit() {
 
   // Send result back to client
 #if !SERVER_GENERATE_QUERIES
-#if CC_ALG != MIXED_LOCK
   msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,CL_RSP),txn_man->client_id);
-#endif
-#endif
-#if CC_ALG == MIXED_LOCK
-  //Send ACK to sequencer to cleanup
-  assert(txn_man->return_id == g_node_id);
-  work_queue.sequencer_enqueue(_thd_id,Message::create_message(txn_man,CALVIN_ACK));
 #endif
   // remove txn from pool
   release_txn_man();
@@ -311,12 +304,6 @@ void WorkerThread::abort() {
   DEBUG("ABORT %ld -- %f\n", txn_man->get_txn_id(),
         (double)get_sys_clock() - run_starttime / BILLION);
   // TODO: TPCC Rollback here
-
-#if CC_ALG == MIXED_LOCK
-  //Send ACK to sequencer to cleanup
-  assert(txn_man->return_id == g_node_id);
-  work_queue.sequencer_enqueue(_thd_id,Message::create_message(txn_man,CALVIN_ACK));
-#endif
 
   ++txn_man->abort_cnt;
   txn_man->reset();
