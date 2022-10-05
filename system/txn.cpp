@@ -365,6 +365,8 @@ void TxnManager::init(uint64_t thd_id, Workload * h_wl) {
   // write_set = (int *) mem_allocator.alloc(sizeof(int) * 100);
 #endif
 #if CC_ALG == MIXED_LOCK
+	_pre_abort = (g_params["pre_abort"] == "true");
+	_pre_abort = false;	//set to false for now
 	phase = CALVIN_RW_ANALYSIS;
 	locking_done = false;
 	calvin_locked_rows.init(MAX_ROW_PER_TXN);
