@@ -256,7 +256,7 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 		assert(txn_id != UINT64_MAX);
 
 #if CC_ALG == MIXED_LOCK
-		if (cc_selector.get_best_cc(_wl, msg) == SILO) {
+		if (cc_selector.get_best_cc(msg) == SILO) {
 			msg->algo = SILO;
 			work_queue.enqueue(thd_id, msg, false);
 			return;

@@ -17,7 +17,7 @@ CCSelector::~CCSelector(){
     delete [] pstats;
     delete [] is_high_conflict;
 }
-int CCSelector::get_best_cc(Workload *wl,Message *msg){
+int CCSelector::get_best_cc(Message *msg){
 #if WORKLOAD == YCSB
     auto req=((YCSBClientQueryMessage*)msg)->requests;
     for(uint64_t i=0;i<req.size();i++){
@@ -44,12 +44,14 @@ int CCSelector::get_best_cc(Workload *wl,Message *msg){
 			if(GET_NODE_ID(part_id_w) == g_node_id) {
 			    // WH
                 key = w_id;
+                key += TPCCTableKey::WAREHOUSE_OFFSET;
                 shard = key_to_shard(key);
                 if(is_high_conflict[shard]){
                     return CALVIN;
                 }
 			    // Dist
 			    key = distKey(d_id, d_w_id);
+                key += TPCCTableKey::DISTRICT_OFFSET;
 				shard = key_to_shard(key);
                 if(is_high_conflict[shard]){
                     return CALVIN;
@@ -59,12 +61,14 @@ int CCSelector::get_best_cc(Workload *wl,Message *msg){
 			    // Cust
 				if (tpcc_msg->by_last_name) {
 				    key = custNPKey(c_last, c_d_id, c_w_id);
+                    key += TPCCTableKey::CUST_BY_NAME_OFFSET;
                     shard = key_to_shard(key);
                     if(is_high_conflict[shard]){
                         return CALVIN;
                     }
 				} else {
 					key = custKey(c_id, c_d_id, c_w_id);
+                    key += TPCCTableKey::CUST_BY_ID_OFFSET;
                     shard = key_to_shard(key);
                     if(is_high_conflict[shard]){
                         return CALVIN;
@@ -76,18 +80,21 @@ int CCSelector::get_best_cc(Workload *wl,Message *msg){
 			if(GET_NODE_ID(part_id_w) == g_node_id) {
 			    // WH
                 key = w_id;
+                key += TPCCTableKey::WAREHOUSE_OFFSET;
                 shard = key_to_shard(key);
                 if(is_high_conflict[shard]){
                     return CALVIN;
                 }
 			    // Cust
                 key = custKey(c_id, d_id, w_id);
+                key += TPCCTableKey::CUST_BY_ID_OFFSET;
                 shard = key_to_shard(key);
                 if(is_high_conflict[shard]){
                     return CALVIN;
                 }
                 // Dist
                 key = distKey(d_id, w_id);
+                key += TPCCTableKey::DISTRICT_OFFSET;
                 shard = key_to_shard(key);
                 if(is_high_conflict[shard]){
                     return CALVIN;
@@ -98,15 +105,14 @@ int CCSelector::get_best_cc(Workload *wl,Message *msg){
                 if (GET_NODE_ID(wh_to_part(tpcc_msg->items[i]->ol_supply_w_id)) != g_node_id) continue;
                 // item
                 key = tpcc_msg->items[i]->ol_i_id;
-                //item key range is 1 ~ 100000 from start, but it overlaps with other tables' key range
-                //so we add 200000 to make an offset so that item key range is globally unique
-                key += 200000;
+                key += TPCCTableKey::ITEM_OFFSET;
                 shard = key_to_shard(key);
                 if(is_high_conflict[shard]){
                     return CALVIN;
                 }
                 // stock
                 key = stockKey(tpcc_msg->items[i]->ol_i_id, tpcc_msg->items[i]->ol_supply_w_id);
+                key += TPCCTableKey::STOCK_OFFSET;
                 shard = key_to_shard(key);
                 if(is_high_conflict[shard]){
                     return CALVIN;
@@ -124,12 +130,14 @@ void CCSelector::update_conflict_stats(uint64_t shard,uint64_t value){
 }
 void CCSelector::update_ccselector(){
 #if WORKLOAD == TPCC
-    for(uint64_t i = CUST_BY_ID_START; i < CUST_BY_ID_END; i++){
+    for(uint64_t i = TPCCTableKey::CUST_BY_ID_START+TPCCTableKey::CUST_BY_ID_OFFSET; i < TPCCTableKey::CUST_BY_ID_END+TPCCTableKey::CUST_BY_ID_OFFSET; i++){
         auto shard = key_to_shard(i);
+        //  for table Customer, 60% cases we use index Customer_by_ID, so we need some scaling up to restore true conflict value
         pstats[shard] = pstats[shard] / 0.6;
     }
-    for(uint64_t i = CUST_BY_NAME_START; i < CUST_BY_NAME_END; i++){
+    for(uint64_t i = TPCCTableKey::CUST_BY_NAME_START+TPCCTableKey::CUST_BY_NAME_OFFSET; i < TPCCTableKey::CUST_BY_NAME_END+TPCCTableKey::CUST_BY_NAME_OFFSET; i++){
         auto shard = key_to_shard(i);
+        //  for table Customer, 40% cases we use index Customer_by_NAME, so we need some scaling up to restore true conflict value
         pstats[shard] = pstats[shard] / 0.4;
     }
 #endif
@@ -154,7 +162,6 @@ Message* CCSelector::pack_msg(){
     return msg;
 }
 void CCSelector::process_conflict_msg(ConflictStaticsMessage *msg){
-    printf("\nCCSelector process conflict msg\n");
     uint64_t node_num=msg->get_return_id();
     for(uint64_t i=0;;i++){//i equals to shard_number_in_node, refer to key_to_shard for more information
         uint64_t shard=i*g_node_cnt+node_num;
