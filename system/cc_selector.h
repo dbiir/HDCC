@@ -20,7 +20,7 @@ namespace TPCCTableKey{
                     STOCK_START         =   stockKey(1,1),
                     STOCK_END           =   stockKey(g_max_items, g_num_wh),
                     ITEM_START          =   1,
-                    ITEM_END            =   100000;
+                    ITEM_END            =   g_max_items;
     //  key offset
     //  our code involves 5 tables in TPCC, that is, Warehouse, District, Item, Stock, Customer
     //  but we have two methods for indexing table Customer and these tables' key range overlaps with each other, sometimes
