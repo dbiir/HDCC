@@ -146,6 +146,9 @@ RC CalvinSequencerThread::run() {
 		switch (msg->get_rtype()) {
 			case CL_QRY:
 			case CL_QRY_O:
+#if CC_ALG == MIXED_LOCK
+			case RTXN:
+#endif
 				// Query from client
 				DEBUG("SEQ process_txn\n");
 				seq_man.process_txn(msg,get_thd_id(),0,0,0,0);
