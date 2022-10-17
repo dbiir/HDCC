@@ -392,7 +392,10 @@ void TxnManager::reset() {
 #endif
 	ready_part = 0;
 	rsp_cnt = 0;
+// We need to keep this state to ensure that the request is not released when the TxnManager is released, the state is reset in the release function
+#if CC_ALG != MIXED_LOCK
 	aborted = false;
+#endif
 	return_id = UINT64_MAX;
 	twopl_wait_start = 0;
 
@@ -425,7 +428,10 @@ void TxnManager::reset() {
 void TxnManager::release() {
 	uint64_t prof_starttime = get_sys_clock();
 #if CC_ALG == MIXED_LOCK
-	qry_pool.put(get_thd_id(),query, algo);
+	if (!aborted) {
+		qry_pool.put(get_thd_id(),query, algo);
+	}
+	aborted = false;
 #else
 	qry_pool.put(get_thd_id(),query);
 #endif

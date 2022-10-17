@@ -59,12 +59,13 @@ RC CalvinLockThread::run() {
 		}
 
 		prof_starttime = get_sys_clock();
-		assert(msg->get_rtype() == CL_QRY || msg->get_rtype() == CL_QRY_O);
 		assert(msg->get_txn_id() != UINT64_MAX);
-
 		txn_man =
 				txn_table.get_transaction_manager(get_thd_id(), msg->get_txn_id(), msg->get_batch_id());
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG != MIXED_LOCK
+		assert(msg->get_rtype() == CL_QRY || msg->get_rtype() == CL_QRY_O);
+		
+#else
 		txn_man->algo = msg->algo;
 #endif
 		while (!txn_man->unset_ready()) {

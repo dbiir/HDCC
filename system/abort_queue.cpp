@@ -27,7 +27,7 @@
 void AbortQueue::init() { pthread_mutex_init(&mtx, NULL); }
 
 #if CC_ALG == MIXED_LOCK
-uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t batch_id, uint64_t abort_cnt) {
+uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, TxnManager* txn, uint64_t abort_cnt) {
 #else
 uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t abort_cnt) {
 #endif
@@ -43,7 +43,10 @@ uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t abort_cn
   entry->penalty_end = penalty;
   entry->txn_id = txn_id;
 #if CC_ALG == MIXED_LOCK
-  entry->batch_id = batch_id;
+  Message * msg = Message::create_message(RTXN);
+  msg->copy_from_txn(txn);
+  msg->return_node_id = txn->client_id;
+  entry->msg = msg;
 #endif
   uint64_t mtx_time_start = get_sys_clock();
   pthread_mutex_lock(&mtx);
@@ -76,13 +79,13 @@ void AbortQueue::process(uint64_t thd_id) {
             simulation->seconds_from_start(starttime));
       INC_STATS(thd_id,abort_queue_penalty_extra,starttime - entry->penalty_end);
       INC_STATS(thd_id,abort_queue_dequeue_cnt,1);
+#if CC_ALG ==MIXED_LOCK
+      work_queue.sequencer_enqueue(thd_id, entry->msg);
+#else
       Message * msg = Message::create_message(RTXN);
-      msg->batch_id = entry->batch_id;
       msg->txn_id = entry->txn_id;
-#if CC_ALG == MIXED_LOCK
-      msg->algo = SILO;
-#endif
       work_queue.enqueue(thd_id,msg,false);
+#endif
       //entry = queue.top();
       DEBUG_M("AbortQueue::dequeue entry free\n");
       mem_allocator.free(entry,sizeof(abort_entry));

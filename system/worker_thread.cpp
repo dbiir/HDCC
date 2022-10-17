@@ -331,12 +331,15 @@ void WorkerThread::abort() {
   #if WORKLOAD != DA //actually DA do not need real abort. Just count it and do not send real abort msg.
   #if CC_ALG == MIXED_LOCK
   uint64_t penalty =
-      abort_queue.enqueue(get_thd_id(), txn_man->get_txn_id(), txn_man->get_batch_id(), txn_man->get_abort_cnt());
+      abort_queue.enqueue(get_thd_id(), txn_man->get_txn_id(), txn_man, txn_man->get_abort_cnt());
+  // When a transaction abort in mixed_lock, it will get a new batch_id and txn_id in next turn,
+  // so we destroy this txn, although this step will lost some stats.
+  release_txn_man();
   #else
   uint64_t penalty =
       abort_queue.enqueue(get_thd_id(), txn_man->get_txn_id(), txn_man->get_abort_cnt());
-  #endif
   txn_man->txn_stats.total_abort_time += penalty;
+  #endif
   #endif
 }
 
