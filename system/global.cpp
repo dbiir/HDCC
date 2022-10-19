@@ -227,6 +227,7 @@ UInt64 g_total_shard_num=g_synth_table_size/g_data_shard_size+1;//+1 to prevent 
 UInt64 g_total_shard_num = (TPCCTableKey::CUST_BY_NAME_END + TPCCTableKey::CUST_BY_NAME_OFFSET) / g_data_shard_size + 1;
 #endif
 UInt64 g_conflict_send_interval = CONFLICT_SEND_INTERVAL;
+double g_prorate_ratio = PRORATE_RATIO;
 
 // TICTOC
 uint32_t g_max_num_waits = MAX_NUM_WAITS;

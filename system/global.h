@@ -289,6 +289,7 @@ extern UInt64 g_lower_bound;
 extern UInt64 g_upper_bound;
 extern UInt64 g_total_shard_num;
 extern UInt64 g_conflict_send_interval;
+extern double g_prorate_ratio;
 
 // TICTOC
 extern uint32_t g_max_num_waits;

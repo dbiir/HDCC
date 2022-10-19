@@ -18,6 +18,17 @@ CCSelector::~CCSelector(){
     delete [] is_high_conflict;
 }
 int CCSelector::get_best_cc(Message *msg){
+// Prorate transactions to Silo as non-deterministic workload
+#if PRORATE_TRANSACTION
+    if (msg->rtype != RTXN) {
+        double x = (double)(rand() % 10000) / 10000;
+        if (x < g_prorate_ratio) {
+            return SILO;
+        }
+    } else {
+        msg->rtype = CL_QRY;
+    }
+#endif
 #if WORKLOAD == YCSB
     auto req=((YCSBClientQueryMessage*)msg)->requests;
     for(uint64_t i=0;i<req.size();i++){
