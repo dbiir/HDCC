@@ -216,6 +216,13 @@
 #define PRE_ABORT2					"true"
 #define ATOMIC_WORD					false
 /***********************************************/
+// Dynamic write perc and skew
+/***********************************************/
+#define DYNAMIC_FLAG 1 //dynamic workload, write perc and skew changes periodically
+#define DYNAMIC_WRITE "0.1|0.9|0.5" //dynamic tuple write percentage
+#define DYNAMIC_SKEW "0.1|1.5|1.1"
+#define SWITCH_INTERVAL 6 * BILLION
+/***********************************************/
 // Logging
 /***********************************************/
 #define LOG_COMMAND         false
@@ -242,9 +249,9 @@
 #define DATA_PERC 100
 #define ACCESS_PERC 0.03
 #define INIT_PARALLELISM 8
-#define SYNTH_TABLE_SIZE 268435456
+#define SYNTH_TABLE_SIZE 8388608
 #define ZIPF_THETA 0.6
-#define TXN_WRITE_PERC 0.5
+#define TXN_WRITE_PERC 1
 #define TUP_WRITE_PERC 0.5
 #define SCAN_PERC           0
 #define SCAN_LEN          20
@@ -462,6 +469,8 @@ enum PPSTxnType {
 #define SEQ_BATCH_TIMER 5 * 1 * MILLION // ~5ms -- same as CALVIN paper
 #define DONE_TIMER 1 * 60 * BILLION // ~1 minutes
 #define WARMUP_TIMER 1 * 60 * BILLION // ~1 minutes
+#define STATS_EVERY_INTERVAL true
+#define ONE_SECOND 1 * BILLION
 
 #define SEED 0
 #define SHMEM_ENV false

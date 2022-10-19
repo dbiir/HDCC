@@ -212,6 +212,10 @@ public:
   double mbuf_send_intv_time;
   double msg_copy_output_time;
 
+  //stats every interval
+  uint64_t * tputs;
+  uint64_t * mixed_lock_silo_cnts;
+  uint64_t * mixed_lock_calvin_cnts;
   // Conflict statistics thread
   uint64_t * row_conflict_total_cnt;
   uint64_t * row_conflict_highest_cnt;

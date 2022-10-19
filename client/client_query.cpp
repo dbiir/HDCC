@@ -22,6 +22,7 @@
 #include "tpcc_query.h"
 #include "pps_query.h"
 #include "da_query.h"
+#include <boost/algorithm/string.hpp>
 
 /*************************************************/
 //     class Query_queue
@@ -44,6 +45,30 @@ Client_query_queue::init(Workload * h_wl) {
 #else
   	size = g_servers_per_client;
 #endif
+
+#if DYNAMIC_FLAG
+	std::vector<std::string> dy_write_str, dy_skew_str;
+	boost::split(dy_write_str, DYNAMIC_WRITE, boost::is_any_of("|"), boost::token_compress_on);
+	boost::split(dy_skew_str, DYNAMIC_SKEW, boost::is_any_of("|"), boost::token_compress_on);
+	for(auto str : dy_write_str){
+		dy_write.push_back(atof(str.c_str()));
+	}
+	for(auto str : dy_skew_str){
+		dy_skew.push_back(atof(str.c_str()));
+	}
+	g_dy_Nbatch = std::min(dy_write.size() * dy_skew.size(), (WARMUP_TIMER + DONE_TIMER)/BILLION/SWITCH_INTERVAL);
+	g_dy_batch_id = 0;
+	queries.resize(g_dy_Nbatch);
+	query_cnt = new uint64_t **[g_dy_Nbatch];
+	for(uint32_t batch_id = 0; batch_id < g_dy_Nbatch; batch_id++){
+		queries[batch_id].resize(size);
+		query_cnt[batch_id] = new uint64_t*[size];
+		for(uint32_t server_id = 0; server_id < size; server_id++){
+			queries[batch_id][server_id].resize(g_max_txn_per_part + 4);
+			query_cnt[batch_id][server_id] = new uint64_t[1];
+		}
+	}
+#else
 	query_cnt = new uint64_t * [size];
 	for ( UInt32 id = 0; id < size; id ++) {
 		std::vector<BaseQuery*> new_queries(g_max_txn_per_part+4,NULL);
@@ -51,6 +76,8 @@ Client_query_queue::init(Workload * h_wl) {
 		query_cnt[id] = (uint64_t*)mem_allocator.align_alloc(sizeof(uint64_t));
 	}
 	next_tid = 0;
+#endif
+
 #if WORKLOAD == DA
 	FUNC_ARGS *arg=(FUNC_ARGS*)mem_allocator.align_alloc(sizeof(FUNC_ARGS));
 	arg->context=this;
@@ -139,12 +166,22 @@ Client_query_queue::initQueriesParallel(uint64_t thd_id) {
 	queries[0][query_id] = gen->create_query(_wl,g_server_start_node);
   }
 #else
-  for ( UInt32 server_id = 0; server_id < g_servers_per_client; server_id ++) {
-	for (UInt32 query_id = request_cnt / g_init_parallelism * tid; query_id < final_request;
-		 query_id++) {
-	  queries[server_id][query_id] = gen->create_query(_wl,server_id+g_server_start_node);
-	}
-  }
+	#if DYNAMIC_FLAG
+		for(uint32_t batch_id = 0; batch_id < g_dy_Nbatch; batch_id++){
+			for(uint32_t server_id = 0; server_id < g_servers_per_client; server_id++){
+				for(uint32_t query_id = request_cnt / g_init_parallelism * tid; query_id < final_request; query_id++){
+					queries[batch_id][server_id][query_id] = gen->create_query(_wl, server_id + g_server_start_node, batch_id);
+				}
+			}
+		}
+	#else
+		for ( UInt32 server_id = 0; server_id < g_servers_per_client; server_id ++) {
+			for (UInt32 query_id = request_cnt / g_init_parallelism * tid; query_id < final_request;
+				query_id++) {
+			queries[server_id][query_id] = gen->create_query(_wl,server_id+g_server_start_node);
+			}
+		}
+	#endif
 #endif
 #endif
 }
@@ -159,6 +196,16 @@ Client_query_queue::get_next_query(uint64_t server_id,uint64_t thread_id) {
   //while(!da_query_queue.pop(query));
   return query;
 #else
+	#if DYNAMIC_FLAG
+		assert(server_id < size);
+		uint64_t query_id = __sync_fetch_and_add(query_cnt[g_dy_batch_id][server_id], 1);//return query_cnt[g_dy_batch_id][server_id]，then query_cnt[g_dy_batch_id][server_id]++
+		if(query_id > g_max_txn_per_part) {
+			__sync_bool_compare_and_swap(query_cnt[g_dy_batch_id][server_id],query_id+1,0);//if query_cnt[g_dy_batch_id][server_id]==query_id+1, then set query_cnt[g_dy_batch_id][server_id] to 0
+			query_id = __sync_fetch_and_add(query_cnt[g_dy_batch_id][server_id], 1);
+		}
+		BaseQuery * query = queries[g_dy_batch_id][server_id][query_id];
+		return query;
+	#else
   assert(server_id < size);
   uint64_t query_id = __sync_fetch_and_add(query_cnt[server_id], 1);//return query_cnt[server_id]，then query_cnt[server_id]++
   if(query_id > g_max_txn_per_part) {
@@ -167,5 +214,6 @@ Client_query_queue::get_next_query(uint64_t server_id,uint64_t thread_id) {
   }
 	BaseQuery * query = queries[server_id][query_id];
 	return query;
+	#endif
 #endif
 }

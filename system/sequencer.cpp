@@ -340,9 +340,19 @@ void Sequencer::send_next_batch(uint64_t thd_id) {
 	if(en && en->epoch == simulation->get_seq_epoch()) {
 		DEBUG("SEND NEXT BATCH %ld [%ld,%ld] %ld\n", thd_id, simulation->get_seq_epoch(), en->epoch,
 					en->size);
-		empty = false;
-
-		en->batch_send_time = prof_stat;
+#if CC_ALG == MIXED_LOCK
+		if (en->txns_left == 0) {
+			DEBUG("FINISHED BATCH %ld\n",en->epoch);
+			LIST_REMOVE_HT(en,wl_head,wl_tail);
+			mem_allocator.free(en->list,sizeof(qlite) * en->max_size);
+			mem_allocator.free(en,sizeof(qlite_ll));
+		}else{
+#endif
+			empty = false;
+			en->batch_send_time = prof_stat;
+#if CC_ALG == MIXED_LOCK
+		}
+#endif
 	}
 
 	Message * msg;

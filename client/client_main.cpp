@@ -41,6 +41,9 @@ void * run_thread(void *);
 ClientThread * client_thds;
 InputThread * input_thds;
 OutputThread * output_thds;
+#if DYNAMIC_FLAG
+DynamicThread *dynamic_thds;
+#endif
 
 // defined in parser.cpp
 void parser(int argc, char * argv[]);
@@ -127,7 +130,10 @@ int main(int argc, char *argv[]) {
 	uint64_t cthd_cnt = thd_cnt;
 	uint64_t rthd_cnt = g_client_rem_thread_cnt;
 	uint64_t sthd_cnt = g_client_send_thread_cnt;
-  uint64_t all_thd_cnt = thd_cnt + rthd_cnt + sthd_cnt;
+	uint64_t dythd_cnt = g_client_dynamic_thread_cnt;
+  	uint64_t all_thd_cnt = thd_cnt + rthd_cnt + sthd_cnt + dythd_cnt;
+  	printf("all_thd_cnt = %ld, g_this_total_thread_cnt = %d\n", all_thd_cnt, g_this_total_thread_cnt);
+
   assert(all_thd_cnt == g_this_total_thread_cnt);
 
   pthread_t *p_thds = (pthread_t *)malloc(sizeof(pthread_t) * (all_thd_cnt));
@@ -137,6 +143,10 @@ int main(int argc, char *argv[]) {
   client_thds = new ClientThread[cthd_cnt];
   input_thds = new InputThread[rthd_cnt];
   output_thds = new OutputThread[sthd_cnt];
+#if DYNAMIC_FLAG
+  dynamic_thds = new DynamicThread[dythd_cnt];
+#endif
+
 	//// query_queue should be the last one to be initialized!!!
 	// because it collects txn latency
   printf("Initializing message queue... ");
@@ -193,6 +203,12 @@ int main(int argc, char *argv[]) {
     output_thds[i].init(id,g_node_id,m_wl);
 		pthread_create(&p_thds[id++], NULL, run_thread, (void *)&output_thds[i]);
   }
+
+#if DYNAMIC_FLAG
+	dynamic_thds[0].init(id,g_node_id,m_wl);
+	pthread_create(&p_thds[id++], NULL, run_thread, (void *)&dynamic_thds[0]);
+#endif
+
 	for (uint64_t i = 0; i < all_thd_cnt; i++)
 		pthread_join(p_thds[i], NULL);
 

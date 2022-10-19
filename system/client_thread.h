@@ -30,4 +30,9 @@ private:
   uint64_t send_interval;
 };
 
+class DynamicThread : public Thread {
+public:
+	RC 			run();
+  void setup();
+};
 #endif

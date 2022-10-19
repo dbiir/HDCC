@@ -34,6 +34,12 @@ void YCSBQueryGenerator::init() {
 		uint64_t table_size = g_synth_table_size / g_part_cnt;
 		the_n = table_size - 1;
 		denom = zeta(the_n, g_zipf_theta);
+	#if DYNAMIC_FLAG
+		for(auto sk : dy_skew){
+			dy_denoms.push_back(zeta(the_n, sk));
+			dy_zeta_2_thetas.push_back(zeta(2, sk));
+		}
+	#endif
 	}
 }
 
@@ -48,6 +54,19 @@ BaseQuery * YCSBQueryGenerator::create_query(Workload * h_wl, uint64_t home_part
 
 	return query;
 }
+#if DYNAMIC_FLAG
+BaseQuery * YCSBQueryGenerator::create_query(Workload * h_wl, uint64_t home_partition_id, uint32_t batch_id) {
+	BaseQuery * query;
+	if (SKEW_METHOD == HOT) {
+		query = gen_requests_hot(home_partition_id, h_wl, batch_id);
+	} else if (SKEW_METHOD == ZIPF){
+		assert(the_n != 0);
+		query = gen_requests_zipf(home_partition_id, h_wl, batch_id);
+	}
+
+	return query;
+}
+#endif
 
 void YCSBQuery::print() {
 
@@ -201,9 +220,22 @@ uint64_t YCSBQueryGenerator::zipf(uint64_t n, double theta) {
 	if (uz < 1 + pow(0.5, theta)) return 2;
 	return 1 + (uint64_t)(n * pow(eta*u -eta + 1, alpha));
 }
+#if DYNAMIC_FLAG
+uint64_t YCSBQueryGenerator::dynamic_zipf(uint64_t n, double dy_theta, double dy_denom, double dy_zeta_2_theta) {
+	assert(this->the_n == n);
+	double alpha = 1 / (1 - dy_theta);
+	double zetan = dy_denom;
+	double eta = (1 - pow(2.0 / n, 1 - dy_theta)) / (1 - dy_zeta_2_theta / zetan);
+	double u = (double)(mrand->next() % 10000000) / 10000000;
+	double uz = u * zetan;
+	if (uz < 1) return 1;
+	if (uz < 1 + pow(0.5, dy_theta)) return 2;
+	return 1 + (uint64_t)(n * pow(eta*u -eta + 1, alpha));
+}
+#endif
 
 
-BaseQuery * YCSBQueryGenerator::gen_requests_hot(uint64_t home_partition_id, Workload * h_wl) {
+BaseQuery * YCSBQueryGenerator::gen_requests_hot(uint64_t home_partition_id, Workload * h_wl, uint32_t batch_id) {
 	YCSBQuery * query = (YCSBQuery*) mem_allocator.alloc(sizeof(YCSBQuery));
 	query->requests.init(g_req_per_query);
 
@@ -225,10 +257,21 @@ BaseQuery * YCSBQueryGenerator::gen_requests_hot(uint64_t home_partition_id, Wor
 		double hot =  (double)(mrand->next() % 10000) / 10000;
 		uint64_t partition_id;
 		ycsb_request * req = (ycsb_request*) mem_allocator.alloc(sizeof(ycsb_request));
+	#if DYNAMIC_FLAG
+		//assuming that dy_write is columns, dy_skew is rows
+		uint32_t dy_wr_index = batch_id % dy_write.size();
+		double dy_tup_read_perc;
+		dy_tup_read_perc = 1 - dy_write[dy_wr_index];
+		if (r_twr < g_txn_read_perc || r < dy_tup_read_perc)
+			req->acctype = RD;
+		else
+			req->acctype = WR;
+	#else
 		if (r_twr < g_txn_read_perc || r < g_tup_read_perc)
 			req->acctype = RD;
 		else
 			req->acctype = WR;
+	#endif
 
 		uint64_t row_id = 0;
 		if ( FIRST_PART_LOCAL && rid == 0) {
@@ -305,7 +348,7 @@ BaseQuery * YCSBQueryGenerator::gen_requests_hot(uint64_t home_partition_id, Wor
 
 }
 
-BaseQuery * YCSBQueryGenerator::gen_requests_zipf(uint64_t home_partition_id, Workload * h_wl) {
+BaseQuery * YCSBQueryGenerator::gen_requests_zipf(uint64_t home_partition_id, Workload * h_wl, uint32_t batch_id) {
 	YCSBQuery * query = (YCSBQuery*) mem_allocator.alloc(sizeof(YCSBQuery));
 	new(query) YCSBQuery();
 	query->requests.init(g_req_per_query);
@@ -347,11 +390,24 @@ BaseQuery * YCSBQueryGenerator::gen_requests_zipf(uint64_t home_partition_id, Wo
 	#endif
 #endif
 		ycsb_request * req = (ycsb_request*) mem_allocator.alloc(sizeof(ycsb_request));
+	#if DYNAMIC_FLAG
+		//assuming that dy_write is columns, dy_skew is rows
+		uint32_t dy_wr_index = batch_id % dy_write.size(), dy_skew_index = batch_id / dy_write.size();
+		double dy_tup_read_perc, dy_zipf_theta;
+		dy_tup_read_perc = 1 - dy_write[dy_wr_index];
+		dy_zipf_theta = dy_skew[dy_skew_index];
+		if (r_twr < g_txn_read_perc || r < dy_tup_read_perc)
+			req->acctype = RD;
+		else
+			req->acctype = WR;
+		uint64_t row_id = dynamic_zipf(table_size - 1, dy_zipf_theta, dy_denoms[dy_skew_index], dy_zeta_2_thetas[dy_skew_index]);
+	#else
 		if (r_twr < g_txn_read_perc || r < g_tup_read_perc)
 			req->acctype = RD;
 		else
 			req->acctype = WR;
 		uint64_t row_id = zipf(table_size - 1, g_zipf_theta);
+	#endif
 		assert(row_id < table_size);
 		uint64_t primary_key = row_id * g_part_cnt + partition_id;
 		assert(primary_key < g_synth_table_size);

@@ -52,8 +52,13 @@ void Stats_thd::init(uint64_t thd_id) {
   DEBUG_M("Stats_thd::init work_queue_dtx_cnt alloc\n");
   work_queue_dtx_cnt= (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
 
+#if STATS_EVERY_INTERVAL
   row_conflict_total_cnt = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
   row_conflict_highest_cnt = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
+  mixed_lock_silo_cnts = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
+  mixed_lock_calvin_cnts = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
+  tputs = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
+#endif
 
   DEBUG_M("Stats_thd::init mtx alloc\n");
   mtx= (double *) mem_allocator.align_alloc(sizeof(double) * 40);
@@ -240,11 +245,15 @@ void Stats_thd::clear() {
   msg_copy_output_time=0;
 
 // Conflict statistics thread
+#if STATS_EVERY_INTERVAL
   for (uint64_t i = 0; i < SECOND; i++) {
     row_conflict_total_cnt[i]=0;
     row_conflict_highest_cnt[i]=0;
+    mixed_lock_silo_cnts[i] = 0;
+    mixed_lock_calvin_cnts[i] = 0;
+    tputs[i] = 0;
   }
-
+#endif
   // Concurrency control, general
   cc_conflict_cnt=0;
   txn_wait_cnt=0;
@@ -932,22 +941,42 @@ void Stats_thd::print(FILE * outf, bool prog) {
           mbuf_send_intv_time / BILLION, mbuf_send_intv_time_avg / BILLION,
           msg_copy_output_time / BILLION);
 
+#if STATS_EVERY_INTERVAL
+  fprintf(outf,"\nrow_conflict_total_cnts\n");
   //Conflict statistics thread
   for(uint64_t i = 0; i < SECOND; i ++) {
     fprintf(outf,
-      ",row_conflict_total_cnt%lu=%lu"
+      ",tcnt%lu=%lu"
       ,i
       ,row_conflict_total_cnt[i]
     );
   }
 
+  fprintf(outf,"\nrow_conflict_highest_cnts\n");
   for(uint64_t i = 0; i < SECOND; i ++) {
     fprintf(outf,
-      ",row_conflict_highest_cnt%lu=%lu"
+      ",hcnt%lu=%lu"
       ,i
       ,row_conflict_highest_cnt[i]
     );
   }
+
+  fprintf(outf,"\nmixedlock_silo_cnts\n");
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf,",scnts%lu=%lu", i, mixed_lock_silo_cnts[i]);
+  }
+
+  fprintf(outf,"\nmixedlock_calvin_cnts\n");
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf,",ccnts%lu=%lu", i, mixed_lock_calvin_cnts[i]);
+  }
+
+  fprintf(outf,"\ntputs\n");
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf, ", tputs%lu=%lu",i,tputs[i]);
+  }
+#endif
+  fprintf(outf,"\n");
 
   // Concurrency control, general
   fprintf(outf,
@@ -1517,11 +1546,15 @@ void Stats_thd::combine(Stats_thd * stats) {
   msg_copy_output_time+=stats->msg_copy_output_time;
 
   //Conflict statistics thread
+#if STATS_EVERY_INTERVAL
   for(uint64_t i = 0; i < SECOND; i ++) {
     row_conflict_total_cnt[i] += stats->row_conflict_total_cnt[i];
     row_conflict_highest_cnt[i] += stats->row_conflict_highest_cnt[i];
+    mixed_lock_silo_cnts[i] += stats->mixed_lock_silo_cnts[i];
+    mixed_lock_calvin_cnts[i] += stats->mixed_lock_calvin_cnts[i];
+    tputs[i] += stats->tputs[i];
   }
-
+#endif
   // Concurrency control, general
   cc_conflict_cnt+=stats->cc_conflict_cnt;
   txn_wait_cnt+=stats->txn_wait_cnt;

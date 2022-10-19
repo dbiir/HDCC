@@ -41,8 +41,15 @@ public:
 private:
 	Workload * _wl;
   uint64_t size;
+#if DYNAMIC_FLAG
+  //3 dimension, which in turn indicates which batch, which server and which query
+  //different batch corresponds to different write perc and skew
+  std::vector<std::vector<std::vector<BaseQuery*>>> queries;
+  uint64_t *** query_cnt;
+#else
   std::vector<std::vector<BaseQuery*>> queries;
   uint64_t ** query_cnt;
+#endif
   volatile uint64_t next_tid;
 };
 

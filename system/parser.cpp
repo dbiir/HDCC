@@ -103,6 +103,8 @@ void parser(int argc, char * argv[]) {
 			g_client_rem_thread_cnt = atoi( &argv[i][4] );
     else if (argv[i][1] == 'c' && argv[i][2] == 't' && argv[i][3] == 's')
 			g_client_send_thread_cnt = atoi( &argv[i][4] );
+    else if (argv[i][1] == 'c' && argv[i][2] == 't' && argv[i][3] == 'd')
+			g_client_dynamic_thread_cnt = atoi( &argv[i][4] );
     else if (argv[i][1] == 'l' && argv[i][2] == 'p' && argv[i][3] == 's')
 			g_load_per_server = atoi( &argv[i][4] );
     else if (argv[i][1] == 't' && argv[i][2] == 'p' && argv[i][3] == 'p')
@@ -182,7 +184,7 @@ void parser(int argc, char * argv[]) {
 			assert(false);
     }
 	}
-  g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + 1;
+  g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + 1;
 #if LOGGING
   g_total_thread_cnt += g_logger_thread_cnt; // logger thread
 #endif
@@ -195,18 +197,20 @@ void parser(int argc, char * argv[]) {
   g_total_thread_cnt += 3; // sequencer + scheduler thread + confilict stat thread
 #endif
   g_total_client_thread_cnt =
-      g_client_thread_cnt + g_client_rem_thread_cnt + g_client_send_thread_cnt;
+      g_client_thread_cnt + g_client_rem_thread_cnt + g_client_send_thread_cnt + g_client_dynamic_thread_cnt;
   g_total_node_cnt = g_node_cnt + g_client_node_cnt + g_repl_cnt*g_node_cnt;
   if(ISCLIENT) {
     g_this_thread_cnt = g_client_thread_cnt;
     g_this_rem_thread_cnt = g_client_rem_thread_cnt;
     g_this_send_thread_cnt = g_client_send_thread_cnt;
     g_this_total_thread_cnt = g_total_client_thread_cnt;
+    g_this_dynamic_thread_cnt = g_client_dynamic_thread_cnt;
   } else {
     g_this_thread_cnt = g_thread_cnt;
     g_this_rem_thread_cnt = g_rem_thread_cnt;
     g_this_send_thread_cnt = g_send_thread_cnt;
     g_this_total_thread_cnt = g_total_thread_cnt;
+    g_this_dynamic_thread_cnt = 0;
   }
   // Scale # of keys with cluster size
   g_max_part_key *= g_node_cnt;

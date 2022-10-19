@@ -165,17 +165,18 @@ UInt32 g_logger_thread_cnt = 1;
 #else
 UInt32 g_logger_thread_cnt = 0;
 #endif
+UInt32 g_stats_per_interval_thread_cnt = STATS_EVERY_INTERVAL;
 UInt32 g_send_thread_cnt = SEND_THREAD_CNT;
 #if CC_ALG == CALVIN
 // sequencer + scheduler thread
-UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_logger_thread_cnt + 3;
+UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + g_logger_thread_cnt + 3;
 #elif CC_ALG == MIXED_LOCK
-UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_logger_thread_cnt + 4;
+UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + g_logger_thread_cnt + 4;
 #else
-UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_logger_thread_cnt + 1;
+UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + g_logger_thread_cnt + 1;
 #endif
 
-UInt32 g_total_client_thread_cnt = g_client_thread_cnt + g_client_rem_thread_cnt + g_client_send_thread_cnt;
+UInt32 g_total_client_thread_cnt = g_client_thread_cnt + g_client_rem_thread_cnt + g_client_send_thread_cnt + g_client_dynamic_thread_cnt;
 UInt32 g_total_node_cnt = g_node_cnt + g_client_node_cnt + g_repl_cnt*g_node_cnt;
 UInt64 g_synth_table_size = SYNTH_TABLE_SIZE;
 UInt32 g_req_per_query = REQ_PER_QUERY;
@@ -186,6 +187,7 @@ UInt32 g_client_node_cnt = CLIENT_NODE_CNT;
 UInt32 g_client_thread_cnt = CLIENT_THREAD_CNT;
 UInt32 g_client_rem_thread_cnt = CLIENT_REM_THREAD_CNT;
 UInt32 g_client_send_thread_cnt = CLIENT_SEND_THREAD_CNT;
+UInt32 g_client_dynamic_thread_cnt = DYNAMIC_FLAG;
 UInt32 g_servers_per_client = 0;
 UInt32 g_clients_per_server = 0;
 UInt32 g_server_start_node = 0;
@@ -194,6 +196,7 @@ UInt32 g_this_thread_cnt = ISCLIENT ? g_client_thread_cnt : g_thread_cnt;
 UInt32 g_this_rem_thread_cnt = ISCLIENT ? g_client_rem_thread_cnt : g_rem_thread_cnt;
 UInt32 g_this_send_thread_cnt = ISCLIENT ? g_client_send_thread_cnt : g_send_thread_cnt;
 UInt32 g_this_total_thread_cnt = ISCLIENT ? g_total_client_thread_cnt : g_total_thread_cnt;
+UInt32 g_this_dynamic_thread_cnt = ISCLIENT ? g_client_dynamic_thread_cnt : 0;
 
 UInt32 g_max_txn_per_part = MAX_TXN_PER_PART;
 UInt32 g_network_delay = NETWORK_DELAY;
@@ -228,6 +231,11 @@ UInt64 g_total_shard_num = (TPCCTableKey::CUST_BY_NAME_END + TPCCTableKey::CUST_
 #endif
 UInt64 g_conflict_send_interval = CONFLICT_SEND_INTERVAL;
 double g_prorate_ratio = PRORATE_RATIO;
+queue<ConflictStaticsMessage*> g_conflict_queue;
+std::vector<double> dy_write;
+std::vector<double> dy_skew;
+uint32_t g_dy_Nbatch;
+uint32_t g_dy_batch_id = 0;
 
 // TICTOC
 uint32_t g_max_num_waits = MAX_NUM_WAITS;
@@ -271,4 +279,3 @@ UInt32 g_repl_type = REPL_TYPE;
 UInt32 g_repl_cnt = REPLICA_CNT;
 
 map<string, string> g_params;
-queue<ConflictStaticsMessage*> g_conflict_queue;

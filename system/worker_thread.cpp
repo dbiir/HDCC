@@ -1130,3 +1130,48 @@ RC WorkerNumThread::run() {
   fflush(stdout);
   return FINISH;
 }
+
+void StatsPerIntervalThread::setup(){
+
+}
+
+RC StatsPerIntervalThread::run(){
+  printf("Running TputsStatsThread %ld\n",_thd_id);
+  uint64_t last_time = get_sys_clock(), now_time;
+  uint64_t txn_cnt_last_time = 0, txn_cnt_this_time = 0;
+  uint64_t silo_cnt_last_time = 0, silo_cnt_this_time = 0, calvin_cnt_last_time = 0, calvin_cnt_this_time = 0;
+  uint64_t loop = 0;
+
+  txn_cnt_last_time = stats.get_txn_cnts();
+  for(uint32_t i = 0; i < g_total_thread_cnt; i++){
+    silo_cnt_last_time += stats._stats[i]->mixed_lock_silo_cnt;
+    calvin_cnt_last_time += stats._stats[i]->mixed_lock_calvin_cnt;
+  }
+  tsetup();
+  
+  while (!simulation->is_done()){
+    now_time = get_sys_clock();
+    if(now_time - last_time > ONE_SECOND){
+      //tput every interval
+      txn_cnt_this_time = stats.get_txn_cnts();
+      for(uint32_t i = 0; i < g_total_thread_cnt; i++){
+        silo_cnt_this_time += stats._stats[i]->mixed_lock_silo_cnt;
+        calvin_cnt_this_time += stats._stats[i]->mixed_lock_calvin_cnt;
+      }
+      INC_STATS(_thd_id, tputs[loop], (txn_cnt_this_time - txn_cnt_last_time));
+      INC_STATS(_thd_id, mixed_lock_silo_cnts[loop], silo_cnt_this_time - silo_cnt_last_time);
+      INC_STATS(_thd_id, mixed_lock_calvin_cnts[loop], calvin_cnt_this_time - calvin_cnt_last_time);
+      txn_cnt_last_time = txn_cnt_this_time;
+      silo_cnt_last_time = silo_cnt_this_time;
+      calvin_cnt_last_time = calvin_cnt_this_time;
+      txn_cnt_this_time = 0;
+      silo_cnt_this_time = 0;
+      calvin_cnt_this_time = 0;
+      last_time = now_time;
+      loop++;
+    }
+  }
+  printf("FINISH %ld:%ld\n",_node_id,_thd_id);
+  fflush(stdout);
+  return FINISH;
+}

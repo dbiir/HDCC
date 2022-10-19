@@ -27,6 +27,7 @@
 #include "msg_queue.h"
 #include "wl.h"
 #include "message.h"
+#include <random>
 
 void ClientThread::setup() {
 	if( _thd_id == 0) {
@@ -122,4 +123,30 @@ RC ClientThread::run() {
 	printf("FINISH %ld:%ld\n",_node_id,_thd_id);
 	fflush(stdout);
 	return FINISH;
+}
+
+RC DynamicThread::run() {
+	tsetup();
+	printf("Running DynamicThread %ld\n",_thd_id);
+
+	default_random_engine generator;
+	//	produces pseudo-random number in closed interval [1, g_dy_Nbatch - 1]
+	//	so that we can assure that g_dy_batch_id gets a different value in every epoch
+	//	for case g_dy_Nbatch == 1, this works fine, but surely, g_dy_batch_id keeps at zero
+	uniform_int_distribution<uint32_t> distrib(1, g_dy_Nbatch - 1);
+	uint64_t start, end;
+	while(!simulation->is_done()) {
+		start = get_sys_clock();
+		g_dy_batch_id = (g_dy_batch_id + distrib(generator)) % g_dy_Nbatch;
+		uint32_t dy_wr_index = g_dy_batch_id % dy_write.size(), dy_skew_index = g_dy_batch_id / dy_write.size();
+		printf("write perc: %lf\tskew: %lf\n", dy_write[dy_wr_index], dy_skew[dy_skew_index]);
+		fflush(stdout);
+		for(end = get_sys_clock();(end - start) < SWITCH_INTERVAL;end = get_sys_clock()){}
+	}
+
+	return FINISH;
+}
+
+void DynamicThread::setup() {
+
 }

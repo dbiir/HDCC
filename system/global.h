@@ -151,7 +151,6 @@ extern CCSelector cc_selector;
 // extern QTcpQueue tcp_queue;
 
 extern map<string, string> g_params;
-extern queue<ConflictStaticsMessage*> g_conflict_queue;
 
 extern bool volatile warmup_done;
 extern bool volatile enable_thread_mem_pool;
@@ -163,6 +162,7 @@ extern pthread_barrier_t warmup_bar;
 extern UInt32 g_client_thread_cnt;
 extern UInt32 g_client_rem_thread_cnt;
 extern UInt32 g_client_send_thread_cnt;
+extern UInt32 g_client_dynamic_thread_cnt;
 extern UInt32 g_client_node_cnt;
 extern UInt32 g_servers_per_client;
 extern UInt32 g_clients_per_server;
@@ -185,7 +185,9 @@ extern UInt32 g_total_thread_cnt;
 extern UInt32 g_total_client_thread_cnt;
 extern UInt32 g_this_thread_cnt;
 extern UInt32 g_this_rem_thread_cnt;
+extern UInt32 g_stats_per_interval_thread_cnt;
 extern UInt32 g_this_send_thread_cnt;
+extern UInt32 g_this_dynamic_thread_cnt;
 extern UInt32 g_this_total_thread_cnt;
 extern UInt32 g_thread_cnt;
 extern UInt32 g_abort_thread_cnt;
@@ -290,6 +292,11 @@ extern UInt64 g_upper_bound;
 extern UInt64 g_total_shard_num;
 extern UInt64 g_conflict_send_interval;
 extern double g_prorate_ratio;
+extern queue<ConflictStaticsMessage*> g_conflict_queue;
+extern std::vector<double> dy_write;
+extern std::vector<double> dy_skew;
+extern uint32_t g_dy_Nbatch;
+extern uint32_t g_dy_batch_id;
 
 // TICTOC
 extern uint32_t g_max_num_waits;

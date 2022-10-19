@@ -53,18 +53,29 @@ class YCSBQueryGenerator : public QueryGenerator {
 public:
   void init();
   BaseQuery * create_query(Workload * h_wl, uint64_t home_partition_id);
+#if DYNAMIC_FLAG
+  //  batch_id corresponds to relevant write perc and skew
+  BaseQuery * create_query(Workload * h_wl, uint64_t home_partition_id, uint32_t batch_id);
+#endif
 
 private:
-	BaseQuery * gen_requests_hot(uint64_t home_partition_id, Workload * h_wl);
-	BaseQuery * gen_requests_zipf(uint64_t home_partition_id, Workload * h_wl);
+	BaseQuery * gen_requests_hot(uint64_t home_partition_id, Workload * h_wl, uint32_t batch_id = 0);
+	BaseQuery * gen_requests_zipf(uint64_t home_partition_id, Workload * h_wl, uint32_t batch_id = 0);
 	// for Zipfian distribution
 	double zeta(uint64_t n, double theta);
 	uint64_t zipf(uint64_t n, double theta);
+#if DYNAMIC_FLAG
+  uint64_t dynamic_zipf(uint64_t n, double dy_theta, double dy_denom, double dy_zeta_2_theta);
+#endif
 
 	myrand * mrand;
 	static uint64_t the_n;
 	static double denom;
 	double zeta_2_theta;
+#if DYNAMIC_FLAG
+  vector<double> dy_denoms;
+  vector<double> dy_zeta_2_thetas;
+#endif
 };
 
 class YCSBQuery : public BaseQuery {

@@ -68,4 +68,10 @@ public:
     void setup();
 
 };
+class StatsPerIntervalThread : public Thread {
+public:
+    RC run();
+    void setup();
+
+};
 #endif

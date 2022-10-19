@@ -61,6 +61,7 @@ void * run_thread(void *);
 
 WorkerThread * worker_thds;
 WorkerNumThread * worker_num_thds;
+StatsPerIntervalThread * stats_per_interval_thds;
 InputThread * input_thds;
 OutputThread * output_thds;
 AbortThread * abort_thds;
@@ -289,7 +290,7 @@ int main(int argc, char *argv[]) {
 	uint64_t wthd_cnt = thd_cnt;
 	uint64_t rthd_cnt = g_rem_thread_cnt;
 	uint64_t sthd_cnt = g_send_thread_cnt;
-	uint64_t all_thd_cnt = thd_cnt + rthd_cnt + sthd_cnt + g_abort_thread_cnt + 1;
+	uint64_t all_thd_cnt = thd_cnt + rthd_cnt + sthd_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + 1;
 #if LOGGING
 		all_thd_cnt += 1; // logger thread
 #endif
@@ -316,6 +317,10 @@ int main(int argc, char *argv[]) {
 	output_thds = new OutputThread[sthd_cnt];
 	abort_thds = new AbortThread[1];
 	log_thds = new LogThread[1];
+#if STATS_EVERY_INTERVAL
+	stats_per_interval_thds = new StatsPerIntervalThread[1];
+#endif
+
 #if CC_ALG == CALVIN
 	calvin_lock_thds = new CalvinLockThread[1];
 	calvin_seq_thds = new CalvinSequencerThread[1];
@@ -463,6 +468,17 @@ int main(int argc, char *argv[]) {
 
 	worker_num_thds[0].init(id,g_node_id,m_wl);
 	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&worker_num_thds[0]);
+
+#if STATS_EVERY_INTERVAL
+#if SET_AFFINITY
+	CPU_ZERO(&cpus);
+	CPU_SET(cpu_cnt, &cpus);
+	pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+	cpu_cnt++;
+#endif
+	stats_per_interval_thds[0].init(id, g_node_id, m_wl);
+	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&stats_per_interval_thds[0]);
+#endif
 	for (uint64_t i = 0; i < all_thd_cnt; i++) pthread_join(p_thds[i], NULL);
 
 	endtime = get_server_clock();
