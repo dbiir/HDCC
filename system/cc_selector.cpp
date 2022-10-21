@@ -19,15 +19,16 @@ CCSelector::~CCSelector(){
 }
 int CCSelector::get_best_cc(Message *msg){
 // Prorate transactions to Silo as non-deterministic workload
+    if (msg->rtype == RTXN) {
+        msg->rtype = CL_QRY;
+    }
 #if PRORATE_TRANSACTION
-    if (msg->rtype != RTXN) {
+    else {
         double x = (double)(rand() % 10000) / 10000;
         if (x < g_prorate_ratio) {
             return SILO;
         }
-    } else {
-        msg->rtype = CL_QRY;
-    }
+    }  
 #endif
 #if WORKLOAD == YCSB
     auto req=((YCSBClientQueryMessage*)msg)->requests;
