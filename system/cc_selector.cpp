@@ -18,15 +18,16 @@ CCSelector::~CCSelector(){
     delete [] is_high_conflict;
 }
 int CCSelector::get_best_cc(Message *msg){
+    if(msg->rtype == RTXN){
+        msg->rtype = CL_QRY;
+    }
 // Prorate transactions to Silo as non-deterministic workload
 #if PRORATE_TRANSACTION
-    if (msg->rtype != RTXN) {
+    else{
         double x = (double)(rand() % 10000) / 10000;
         if (x < g_prorate_ratio) {
             return SILO;
         }
-    } else {
-        msg->rtype = CL_QRY;
     }
 #endif
 #if WORKLOAD == YCSB
@@ -136,23 +137,64 @@ int CCSelector::get_best_cc(Message *msg){
     return SILO;
 #endif
 }
-void CCSelector::update_conflict_stats(uint64_t shard,uint64_t value){
-    ATOM_ADD(pstats[shard],value);
+
+#if WORKLOAD == YCSB
+void CCSelector::update_conflict_stats(row_t * row){
+    uint64_t shard = key_to_shard(row->get_primary_key());
+    ATOM_ADD(pstats[shard], 1);
 }
+#elif WORKLOAD == TPCC
+void CCSelector::update_conflict_stats(TPCCQuery *query, row_t * row){
+    auto table_name = row->get_table_name();
+    uint64_t key = row->get_primary_key();
+    uint64_t w_id = query->w_id;
+	uint64_t d_id = query->d_id;
+	uint64_t c_id = query->c_id;
+	uint64_t d_w_id = query->d_w_id;
+	uint64_t c_w_id = query->c_w_id;
+	uint64_t c_d_id = query->c_d_id;
+	char * c_last = query->c_last;
+    if(strcmp(table_name, "WAREHOUSE") == 0){
+        key += TPCCTableKey::WAREHOUSE_OFFSET;
+    }else if(strcmp(table_name, "DISTRICT") == 0){
+        key += TPCCTableKey::DISTRICT_OFFSET;
+    }else if(strcmp(table_name, "ITEM") == 0){
+        key += TPCCTableKey::ITEM_OFFSET;
+    }else if(strcmp(table_name, "STOCK") == 0){
+        key += TPCCTableKey::STOCK_OFFSET;
+    }else if(strcmp(table_name, "CUSTOMER") == 0){
+        if(query->by_last_name){
+            key = custNPKey(query->c_last, query->c_d_id, query->c_w_id);
+            key += TPCCTableKey::CUST_BY_NAME_OFFSET;
+        }else{
+            key += TPCCTableKey::CUST_BY_ID_OFFSET;
+        }
+    }else{
+        assert(false);
+    }
+    uint64_t shard = key_to_shard(key);
+    ATOM_ADD(pstats[shard], 1);
+}
+#endif
+
 void CCSelector::update_ccselector(){
 #if WORKLOAD == TPCC
-    for(uint64_t i = TPCCTableKey::CUST_BY_ID_START+TPCCTableKey::CUST_BY_ID_OFFSET; i < TPCCTableKey::CUST_BY_ID_END+TPCCTableKey::CUST_BY_ID_OFFSET; i++){
-        auto shard = key_to_shard(i);
+    uint64_t start_shard = key_to_shard(TPCCTableKey::CUST_BY_ID_START+TPCCTableKey::CUST_BY_ID_OFFSET);
+    uint64_t end_shard = key_to_shard(TPCCTableKey::CUST_BY_ID_END+TPCCTableKey::CUST_BY_ID_OFFSET);
+    for(uint64_t i = start_shard; i < end_shard; i++){
         //  for table Customer, 60% cases we use index Customer_by_ID, so we need some scaling up to restore true conflict value
-        pstats[shard] = pstats[shard] / 0.6;
+        pstats[i] = pstats[i] / 0.6;
     }
-    for(uint64_t i = TPCCTableKey::CUST_BY_NAME_START+TPCCTableKey::CUST_BY_NAME_OFFSET; i < TPCCTableKey::CUST_BY_NAME_END+TPCCTableKey::CUST_BY_NAME_OFFSET; i++){
-        auto shard = key_to_shard(i);
+    start_shard = key_to_shard(TPCCTableKey::CUST_BY_NAME_START+TPCCTableKey::CUST_BY_NAME_OFFSET);
+    end_shard = key_to_shard(TPCCTableKey::CUST_BY_NAME_END+TPCCTableKey::CUST_BY_NAME_OFFSET);
+    for(uint64_t i = start_shard; i < end_shard; i++){
         //  for table Customer, 40% cases we use index Customer_by_NAME, so we need some scaling up to restore true conflict value
-        pstats[shard] = pstats[shard] / 0.4;
+        pstats[i] = pstats[i] / 0.4;
     }
 #endif
-    for(uint64_t i=0;;i++){//i equals to shard_number_in_node, refer to key_to_shard for more information
+    //  i equals to shard_number_in_node, refer to key_to_shard for more information
+    //  only update shards that physically stored in this node which is specified by g_node_id
+    for(uint64_t i=0;;i++){
         uint64_t shard=i*g_node_cnt+g_node_id;
         if(shard>=g_total_shard_num){
             break;
@@ -174,7 +216,9 @@ Message* CCSelector::pack_msg(){
 }
 void CCSelector::process_conflict_msg(ConflictStaticsMessage *msg){
     uint64_t node_num=msg->get_return_id();
-    for(uint64_t i=0;;i++){//i equals to shard_number_in_node, refer to key_to_shard for more information
+    //  i equals to shard_number_in_node, refer to key_to_shard for more information
+    //  only update shards that physically stored in other node which is specified by node_num in upper row
+    for(uint64_t i=0;;i++){
         uint64_t shard=i*g_node_cnt+node_num;
         if(shard>=g_total_shard_num){
             break;
@@ -186,12 +230,9 @@ void CCSelector::process_conflict_msg(ConflictStaticsMessage *msg){
 
 uint64_t CCSelector::get_total_conflict() {
     uint64_t sum = 0;
-    for (uint64_t i = 0;; i++) {
-        uint64_t shard=i*g_node_cnt+g_node_id;
-        if(shard>=g_total_shard_num){
-            break;
-        }
-        sum += pstats[shard];
+    // all shard stats
+    for (uint64_t i = 0; i < g_total_shard_num; i++) {
+        sum += pstats[i];
     }
     return sum;
 }

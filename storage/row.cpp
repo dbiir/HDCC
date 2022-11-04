@@ -70,7 +70,9 @@ void row_t::init_manager(row_t * row) {
 #endif
 	DEBUG_M("row_t::init_manager alloc \n");
 #if CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == CALVIN
-	manager = (Row_lock *) mem_allocator.align_alloc(sizeof(Row_lock));
+	// manager = (Row_lock *) mem_allocator.align_alloc(sizeof(Row_lock));
+	// lead to tput improvement, this change aims to let tput of original CALVIN catch up with MIXED_LOCK's CALVIN
+	manager = new Row_lock();
 #elif CC_ALG == TIMESTAMP
 	manager = (Row_ts *) mem_allocator.align_alloc(sizeof(Row_ts));
 #elif CC_ALG == MVCC
@@ -96,7 +98,11 @@ void row_t::init_manager(row_t * row) {
 #elif CC_ALG == CNULL
 	manager = (Row_null *) mem_allocator.align_alloc(sizeof(Row_null));
 #elif CC_ALG == MIXED_LOCK
-	manager = (Row_mixed_lock *) mem_allocator.align_alloc(sizeof(Row_mixed_lock));
+	// 	since insert operation is inroduced in TPCC, get_new_row function is continuously invoked during runtime,
+	// 	which overwhelms the part of initialization of row manager
+	//	we find that using new instead of mem_allocator can get rid of this bottle neck to some extent
+	manager = new Row_mixed_lock();
+	// manager = (Row_mixed_lock *) mem_allocator.align_alloc(sizeof(Row_mixed_lock));
 #elif CC_ALG == SILO
     manager = (Row_silo *) mem_allocator.align_alloc(sizeof(Row_silo));
 #endif

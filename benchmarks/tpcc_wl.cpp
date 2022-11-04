@@ -279,7 +279,7 @@ void TPCCWorkload::init_tab_dist(uint64_t wid) {
 		row_t * row;
 		uint64_t row_id;
 		t_district->get_new_row(row, 0, row_id);
-		row->set_primary_key(did);
+		row->set_primary_key(distKey(did, wid));
 
 		row->set_value(D_ID, did);
 		row->set_value(D_W_ID, wid);
@@ -315,7 +315,7 @@ void TPCCWorkload::init_tab_stock(int id, uint64_t wid) {
 		row_t * row;
 		uint64_t row_id;
 		t_stock->get_new_row(row, 0, row_id);
-		row->set_primary_key(sid);
+		row->set_primary_key(stockKey(sid, wid));
 		row->set_value(S_I_ID, sid);
 		row->set_value(S_W_ID, wid);
 		row->set_value(S_QUANTITY, URand(10, 100));
@@ -357,8 +357,7 @@ void TPCCWorkload::init_tab_cust(int id, uint64_t did, uint64_t wid) {
 		row_t * row;
 		uint64_t row_id;
 		t_customer->get_new_row(row, 0, row_id);
-		row->set_primary_key(cid);
-
+		row->set_primary_key(custKey(cid, did, wid));	// use custKey here, so additional consideration should be given when indexing Customer by name
 		row->set_value(C_ID, cid);
 		row->set_value(C_D_ID, did);
 		row->set_value(C_W_ID, wid);

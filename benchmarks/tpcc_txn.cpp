@@ -209,21 +209,20 @@ RC TPCCTxnManager::acquire_locks() {
 				if (rc2 != RCOK) rc = rc2;
 			}
 			// Items
-				for(uint64_t i = 0; i < tpcc_query->ol_cnt; i++) {
+			for(uint64_t i = 0; i < tpcc_query->ol_cnt; i++) {
 				if (GET_NODE_ID(wh_to_part(tpcc_query->items[i]->ol_supply_w_id)) != g_node_id) continue;
-
-					key = tpcc_query->items[i]->ol_i_id;
-					item = index_read(_wl->i_item, key, 0);
-					row = ((row_t *)item->location);
-					rc2 = get_lock(row, RD);
+				key = tpcc_query->items[i]->ol_i_id;
+				item = index_read(_wl->i_item, key, 0);
+				row = ((row_t *)item->location);
+				rc2 = get_lock(row, RD);
 				if (rc2 != RCOK) rc = rc2;
-					key = stockKey(tpcc_query->items[i]->ol_i_id, tpcc_query->items[i]->ol_supply_w_id);
-					index = _wl->i_stock;
-					item = index_read(index, key, wh_to_part(tpcc_query->items[i]->ol_supply_w_id));
-					row = ((row_t *)item->location);
-					rc2 = get_lock(row, WR);
+				key = stockKey(tpcc_query->items[i]->ol_i_id, tpcc_query->items[i]->ol_supply_w_id);
+				index = _wl->i_stock;
+				item = index_read(index, key, wh_to_part(tpcc_query->items[i]->ol_supply_w_id));
+				row = ((row_t *)item->location);
+				rc2 = get_lock(row, WR);
 				if (rc2 != RCOK) rc = rc2;
-				}
+			}
 			break;
 		default:
 			assert(false);

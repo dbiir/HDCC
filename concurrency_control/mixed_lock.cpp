@@ -13,6 +13,7 @@
 #include "wl.h"
 #include "ycsb.h"
 #include "ycsb_query.h"
+#include "tpcc_query.h"
 #include "cc_selector.h"
 
 #if CC_ALG == MIXED_LOCK
@@ -88,7 +89,11 @@ RC TxnManager::validate_silo() {
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
         row_t* row = txn->accesses[i]->orig_row;
         if (key_to_part(row->get_primary_key()) == g_node_id) {
-          cc_selector.update_conflict_stats(key_to_shard(row->get_primary_key()));
+        #if WORKLOAD == TPCC
+          cc_selector.update_conflict_stats(((TPCCQuery*)(this->query)), row);
+        #else
+          cc_selector.update_conflict_stats(row);
+        #endif
         }
       }
       rc = Abort;
@@ -111,7 +116,11 @@ RC TxnManager::validate_silo() {
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
         row_t* row = txn->accesses[i]->orig_row;
         if (key_to_part(row->get_primary_key()) == g_node_id) {
-          cc_selector.update_conflict_stats(key_to_shard(row->get_primary_key()));
+        #if WORKLOAD == TPCC
+          cc_selector.update_conflict_stats(((TPCCQuery*)(this->query)), row);
+        #else
+          cc_selector.update_conflict_stats(row);
+        #endif
         }
       }
       rc = Abort;
@@ -128,7 +137,11 @@ RC TxnManager::validate_silo() {
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
         row_t* row = txn->accesses[i]->orig_row;
         if (key_to_part(row->get_primary_key()) == g_node_id) {
-          cc_selector.update_conflict_stats(key_to_shard(row->get_primary_key()));
+        #if WORKLOAD == TPCC
+          cc_selector.update_conflict_stats(((TPCCQuery*)(this->query)), row);
+        #else
+          cc_selector.update_conflict_stats(row);
+        #endif
         }
       }
       rc = Abort;

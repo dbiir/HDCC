@@ -430,6 +430,18 @@ void TxnManager::release() {
 #if CC_ALG == MIXED_LOCK
 	if (!aborted) {
 		qry_pool.put(get_thd_id(),query, algo);
+	}else{
+		//	in MIXED_LOCK, aborted txn need to restart with new txn id and batch id,
+		//	so we free the original txn manager and we have copied and stored corresponding interior information into abort_queue
+		// 	so we don't need the original info anymore, free them here
+	#if WORKLOAD == YCSB
+		query->release();	//basequery release
+		((YCSBQuery*)query)->requests.release();
+	#elif WORKLOAD == TPCC
+		query->release();	//basequery release
+		((TPCCQuery*)query)->items.release();
+	#endif
+		delete query;
 	}
 	aborted = false;
 #else
@@ -472,7 +484,11 @@ void TxnManager::reset_query() {
 	((YCSBQuery*)query)->reset();
 #endif
 #elif WORKLOAD == TPCC
+#if CC_ALG == MIXED_LOCK
+	((TPCCQuery*)query)->reset(algo);
+#else
 	((TPCCQuery*)query)->reset();
+#endif
 #elif WORKLOAD == PPS
 	((PPSQuery*)query)->reset();
 #endif

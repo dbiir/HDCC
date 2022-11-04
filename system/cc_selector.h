@@ -5,6 +5,7 @@
 #include "message.h"
 #include "helper.h"
 #include "tpcc_helper.h"
+#include "tpcc_query.h"
 
 #if WORKLOAD == TPCC
 namespace TPCCTableKey{
@@ -41,7 +42,11 @@ public:
     ~CCSelector();
     void init();
     int get_best_cc(Message *msg);//for a txn, pick optimal concurrency control
-    void update_conflict_stats(uint64_t shard,uint64_t value=1);//add conflict number, add 1 at a time by default
+#if WORKLOAD == YCSB
+    void update_conflict_stats(row_t * row);
+#elif WORKLOAD == TPCC
+    void update_conflict_stats(TPCCQuery * query, row_t * row);
+#endif
     void update_ccselector();
     Message* pack_msg();
     void process_conflict_msg(ConflictStaticsMessage *msg);

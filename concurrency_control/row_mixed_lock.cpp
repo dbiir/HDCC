@@ -3,6 +3,7 @@
 #include "row_mixed_lock.h"
 #include "mem_alloc.h"
 #include "cc_selector.h"
+#include "tpcc_query.h"
 
 #if CC_ALG==MIXED_LOCK
 
@@ -89,7 +90,11 @@ RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int
       rc = WAIT;
 
       // Calvin determines conflicts on all rows accessed, so we only process each data that actually conflicts
-      cc_selector.update_conflict_stats(key_to_shard(this->_row->get_primary_key()));
+	  #if WORKLOAD == TPCC
+      cc_selector.update_conflict_stats(((TPCCQuery*)(txn->query)), _row);
+    #else
+      cc_selector.update_conflict_stats(_row);
+    #endif
     } else if (txn->algo == SILO) {  // silo
       //出现冲突就回滚
       rc = Abort;

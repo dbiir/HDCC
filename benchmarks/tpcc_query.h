@@ -54,7 +54,11 @@ class TPCCQuery : public BaseQuery {
 public:
 	void init(uint64_t thd_id, Workload * h_wl);
   void init();
+#if CC_ALG == MIXED_LOCK
+  void reset(int algo);
+#else
   void reset();
+#endif
   void release();
   void release_items();
   void print();
