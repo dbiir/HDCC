@@ -68,14 +68,14 @@ void InputThread::setup() {
 		}
 		delete msgs;
 	}
-	if (!ISCLIENT) {
-		txn_man = (YCSBTxnManager *)
-			mem_allocator.align_alloc( sizeof(YCSBTxnManager));
-		new(txn_man) YCSBTxnManager();
-		// txn_man = (TxnManager*) malloc(sizeof(TxnManager));
-		uint64_t thd_id = get_thd_id();
-		txn_man->init(thd_id, NULL);
-	}
+	// if (!ISCLIENT) {
+	// 	txn_man = (YCSBTxnManager *)
+	// 		mem_allocator.align_alloc( sizeof(YCSBTxnManager));
+	// 	new(txn_man) YCSBTxnManager();
+	// 	// txn_man = (TxnManager*) malloc(sizeof(TxnManager));
+	// 	uint64_t thd_id = get_thd_id();
+	// 	txn_man->init(thd_id, NULL);
+	// }
 }
 
 RC InputThread::run() {
