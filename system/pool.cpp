@@ -173,14 +173,12 @@ void QryPool::init(Workload * wl, uint64_t size) {
     for(uint64_t i = 0; i < size; i++) {
     //put(items[i]);
 #if WORKLOAD==TPCC
-    TPCCQuery * m_qry = (TPCCQuery *) mem_allocator.alloc(sizeof(TPCCQuery));
-    m_qry = new TPCCQuery();
+    TPCCQuery * m_qry = new TPCCQuery();
 #elif WORKLOAD==PPS
     PPSQuery * m_qry = (PPSQuery *) mem_allocator.alloc(sizeof(PPSQuery));
     m_qry = new PPSQuery();
 #elif WORKLOAD==YCSB
-    YCSBQuery * m_qry = (YCSBQuery *) mem_allocator.alloc(sizeof(YCSBQuery));
-    m_qry = new YCSBQuery();
+    YCSBQuery * m_qry = new YCSBQuery();
 #elif WORKLOAD==DA
     DAQuery * m_qry = (DAQuery *) mem_allocator.alloc(sizeof(DAQuery));
     m_qry = new DAQuery();
@@ -205,15 +203,12 @@ void QryPool::get(uint64_t thd_id, BaseQuery *& item) {
   if(!r) {
     DEBUG_M("query_pool alloc\n");
 #if WORKLOAD==TPCC
-    TPCCQuery * qry = (TPCCQuery *) mem_allocator.alloc(sizeof(TPCCQuery));
-    qry = new TPCCQuery();
+    TPCCQuery* qry = new TPCCQuery();
 #elif WORKLOAD==PPS
     PPSQuery * qry = (PPSQuery *) mem_allocator.alloc(sizeof(PPSQuery));
     qry = new PPSQuery();
 #elif WORKLOAD==YCSB
-    YCSBQuery * qry = NULL;
-    qry = (YCSBQuery *) mem_allocator.alloc(sizeof(YCSBQuery));
-    qry = new YCSBQuery();
+    YCSBQuery * qry = new YCSBQuery();
 #elif WORKLOAD==DA
     DAQuery * qry = NULL;
     qry = (DAQuery *) mem_allocator.alloc(sizeof(DAQuery));
@@ -238,7 +233,11 @@ void QryPool::put(uint64_t thd_id, BaseQuery * item) {
   ((YCSBQuery*)item)->reset();
 #endif
 #elif WORKLOAD == TPCC
+#if CC_ALG == MIXED_LOCK
+  ((TPCCQuery*)item)->reset(algo);
+#else
   ((TPCCQuery*)item)->reset();
+#endif
 #elif WORKLOAD == PPS
   ((PPSQuery*)item)->reset();
 #endif
@@ -261,7 +260,9 @@ void QryPool::put(uint64_t thd_id, BaseQuery * item) {
 #elif WORKLOAD == PPS
   ((PPSQuery*)item)->release();
 #endif
-    mem_allocator.free(item,sizeof(BaseQuery));
+  //  it comes from new, so we should use delete, refer to QryPool::get function
+  //  BaseQuery's deconstruct function is a virtual function so we don't need type cast here
+  delete item;
   }
 }
 
