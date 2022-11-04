@@ -149,7 +149,7 @@ TxnManager::validate_silo()
 	}
 
 	this->max_tid = max_tid;
-
+	find_tid_silo(this->max_tid);
 	return rc;
 }
 
