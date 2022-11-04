@@ -1136,7 +1136,7 @@ void StatsPerIntervalThread::setup(){
 }
 
 RC StatsPerIntervalThread::run(){
-  printf("Running TputsStatsThread %ld\n",_thd_id);
+  printf("Running StatsPerIntervalThread %ld\n",_thd_id);
   uint64_t last_time = get_sys_clock(), now_time;
   uint64_t txn_cnt_last_time = 0, txn_cnt_this_time = 0;
   uint64_t silo_cnt_last_time = 0, silo_cnt_this_time = 0, calvin_cnt_last_time = 0, calvin_cnt_this_time = 0;
