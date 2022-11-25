@@ -8,6 +8,7 @@ from helper import *
 from run_config import *
 import glob
 import time
+import ast
 
 now = datetime.datetime.now()
 strnow=now.strftime("%Y%m%d-%H%M%S")
@@ -18,6 +19,7 @@ PATH=os.getcwd()
 
 result_dir = PATH + "/results/" + strnow + '/'
 perf_dir = result_dir + 'perf/'
+simple_summary_file = 'simple_summary.out'
 
 cfgs = configs
 
@@ -91,17 +93,17 @@ for exp in exps:
                     f_cfg.write(line)
 
         cmd = "make clean; make deps; make -j32"
-        print cmd
+        print(cmd)
         os.system(cmd)
         if not execute:
             exit()
 
         if execute:
             cmd = "mkdir -p {}".format(perf_dir)
-            print cmd
+            print(cmd)
             os.system(cmd)
             cmd = "cp config.h {}{}.cfg".format(result_dir,output_f)
-            print cmd
+            print(cmd)
             os.system(cmd)
 
             if remote:
@@ -132,7 +134,7 @@ for exp in exps:
                     elif cluster == 'vcloud':
                         os.system('./scripts/kill.sh {}'.format(m))
                         cmd = 'scp {}/{} {}:/{}'.format(PATH, f, m, uname)
-                    print cmd
+                    print(cmd)
                     os.system(cmd)
 
                 print("Deploying: {}".format(output_f))
@@ -141,29 +143,29 @@ for exp in exps:
                     cmd = './deploy.sh \'{}\' /{}/ {}'.format(' '.join(machines), uname, cfgs["NODE_CNT"])
                 elif cluster == 'vcloud':
                     cmd = './vcloud_deploy.sh \'{}\' /{}/ {} {} {}'.format(' '.join(machines), uname, cfgs["NODE_CNT"], perfTime, uname2)
-                print cmd
+                print(cmd)
                 fromtimelist.append(str(int(time.time())) + "000")
                 os.system(cmd)
                 totimelist.append(str(int(time.time())) + "000")
                 perfip = machines[0]
                 cmd = "scp getFlame.sh {}:/{}/".format(perfip, uname2)
-                print cmd
+                print(cmd)
                 os.system(cmd)
                 cmd = 'ssh {}@{} "bash /{}/getFlame.sh"'.format(uname2, perfip, vcloud_uname)
-                print cmd
+                print(cmd)
                 os.system(cmd)
                 cmd = "scp {}:/{}/perf.svg {}{}.svg".format(perfip, uname2, perf_dir, output_f)
-                print cmd
+                print(cmd)
                 os.system(cmd)
                 os.chdir('..')
                 for m, n in zip(machines, range(len(machines))):
                     if cluster == 'istc':
                         cmd = 'scp {}.csail.mit.edu:/{}/results.out {}{}_{}.out'.format(m,uname,result_dir,n,output_f)
-                        print cmd
+                        print(cmd)
                         os.system(cmd)
                     elif cluster == 'vcloud':
                         cmd = 'scp {}:/{}/dbresults.out results/{}/{}_{}.out'.format(m,uname,strnow,n,output_f)
-                        print cmd
+                        print(cmd)
                         os.system(cmd)
 
             else:
@@ -184,6 +186,31 @@ for exp in exps:
                     pids.insert(0,p)
                 for n in range(nnodes + nclnodes):
                     pids[n].wait()
+        tmp_path = os.getcwd()
+        os.chdir(result_dir)
+        cmd = 'echo nodes: {} >> {}'.format(machines[:cfgs['NODE_CNT']], simple_summary_file)
+        os.system(cmd)
+        cmd = 'echo "basic configs" >> {}'.format(simple_summary_file)
+        os.system(cmd)
+        cmd = 'echo {} >> {}'.format(str(fmt), simple_summary_file)
+        os.system(cmd)
+        cmd = 'echo {} >> {}'.format(str(e), simple_summary_file)
+        os.system(cmd)
+        for i in range(cfgs['NODE_CNT']):
+            cmd = 'ls | grep %s'%(str(str(i) + '_' + str(cfgs['CC_ALG']))) + '| xargs cat | grep summary | awk \'{print$2}\''
+            res = ''.join(os.popen(cmd).readlines())
+            res = res.strip('\n')
+            res = res.replace('=', '": "')
+            res = res.replace(',', '", "')
+            res = '{"' + res + '"}'
+            metrics_dict = ast.literal_eval(res)
+            # output tput metric into simple_summary file, you can add any other metric that exists in the first row of original summary file
+            # note that row_conflict_total_cnts is second row of original summary file so you can not see it in metrics_dict
+            metirc = metrics_dict['tput']
+            cmd = 'echo tput = {} >> {}'.format(metirc, simple_summary_file)
+            os.system(cmd)
+        os.chdir(tmp_path)
+
 
     al = []
     for e in experiments:
@@ -236,9 +263,9 @@ for exp in exps:
         cmd='./result.sh -a tpcc_stress -n {} -c {} -l {} -t {}'.format(str(cn[0]), ','.join([str(x) for x in al]), ','.join([str(x) for x in tpcc_ld]), strnow)
     elif 'tpcc_cstress' in exp:
         cmd='./result.sh -a tpcc_stress_ctx -n {} -c {} -l {} -C {} -t {} --ft {} --tt {}'.format(str(cn[0]), ','.join([str(x) for x in al]), ','.join([str(x) for x in ld]), ','.join([str(x) for x in ccnt]), strnow, ','.join(fromtimelist), ','.join(totimelist))
-    print cmd
+    print (cmd)
     os.system(cmd)
-    print cmd
+    print (cmd)
 
     cmd=''
     os.chdir('../draw')
@@ -256,5 +283,5 @@ for exp in exps:
        cmd='./deneva-plot.sh -a tpcc_stress -c {} -t {}'.format(','.join([str(x) for x in al]), strnow)
     elif 'tpcc_cstress' in exp:
        cmd='./deneva-plot-his.sh -a tpcc_cstress -c {} -t {}'.format(','.join([str(x) for x in al]), strnow)
-    print cmd
+    print(cmd)
     os.system(cmd)
