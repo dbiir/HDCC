@@ -1110,7 +1110,7 @@ def print_keys(result_dir="../results",keys=['txn_cnt']):
             elif len(summary_line) == 1:
                 res_line=summary_line[0][len('[summary]'):].strip()
             else:
-                assert false
+                assert False
             if res_line:
                 avail_keys = res_line.split(',')
                 keys_to_print=[k for k in avail_keys if k.split('=')[0] in keys]
