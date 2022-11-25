@@ -44,10 +44,13 @@ int get_thdid_from_txnid(uint64_t txnid) { return txnid % g_thread_cnt; }
 uint64_t get_part_id(void *addr) { return ((uint64_t)addr / PAGE_SIZE) % g_part_cnt; }
 
 uint64_t key_to_part(uint64_t key) {
-	if (g_part_alloc)
-		return key % g_part_cnt;
-	else 
-		return 0;
+	return key % g_part_cnt;
+	// this function is called by mixed_lock.cpp only, another referene is actualy impossible
+	// use above statment instead of below statements is acceptable for our aim
+	// if (g_part_alloc)
+	// 	return key % g_part_cnt;
+	// else 
+	// 	return 0;
 }
 
 /*
