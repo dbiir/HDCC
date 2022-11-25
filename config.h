@@ -43,7 +43,7 @@
 
 // ! Parameters used to locate distributed performance bottlenecks.
 
-#define SECOND 100 // Set the queue monitoring time.
+#define SECOND 130 // Set the queue monitoring time.
 // #define THD_ID_QUEUE
 #define ONE_NODE_RECIEVE 0 // only node 0 will receive the txn query
 #if 0
@@ -204,7 +204,7 @@
 #define LOWER_BOUND 1000
 #define UPPER_BOUND 2000
 #define CONFLICT_SEND_INTERVAL 1 * BILLION // 1s
-#define PRORATE_TRANSACTION true
+#define PRORATE_TRANSACTION false
 #define PRORATE_RATIO 0.2
 // [TICTOC]
 #define MAX_NUM_WAITS 4
@@ -218,7 +218,7 @@
 /***********************************************/
 // Dynamic write perc and skew
 /***********************************************/
-#define DYNAMIC_FLAG 1 //dynamic workload, write perc and skew changes periodically
+#define DYNAMIC_FLAG 0 //dynamic workload, write perc and skew changes periodically
 #define DYNAMIC_WRITE "0.1|0.9|0.5" //dynamic tuple write percentage
 #define DYNAMIC_SKEW "0.1|1.5|1.1"
 #define SWITCH_INTERVAL 6 * BILLION

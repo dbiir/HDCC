@@ -864,7 +864,7 @@ configs = {
     "ZIPF_THETA":0.3,
     "ACCESS_PERC":0.03,
     "DATA_PERC": 100,
-    "REQ_PER_QUERY": 1,
+    "REQ_PER_QUERY": 10,
     "SYNTH_TABLE_SIZE":"65536",
 #TPCC
     "NUM_WH": 'PART_CNT',
