@@ -941,43 +941,6 @@ void Stats_thd::print(FILE * outf, bool prog) {
           mbuf_send_intv_time / BILLION, mbuf_send_intv_time_avg / BILLION,
           msg_copy_output_time / BILLION);
 
-#if STATS_EVERY_INTERVAL
-  fprintf(outf,"\nrow_conflict_total_cnts\n");
-  //Conflict statistics thread
-  for(uint64_t i = 0; i < SECOND; i ++) {
-    fprintf(outf,
-      ",tcnt%lu=%lu"
-      ,i
-      ,row_conflict_total_cnt[i]
-    );
-  }
-
-  fprintf(outf,"\nrow_conflict_highest_cnts\n");
-  for(uint64_t i = 0; i < SECOND; i ++) {
-    fprintf(outf,
-      ",hcnt%lu=%lu"
-      ,i
-      ,row_conflict_highest_cnt[i]
-    );
-  }
-
-  fprintf(outf,"\nmixedlock_silo_cnts\n");
-  for(uint64_t i = 0; i < SECOND; i ++) {
-    fprintf(outf,",scnts%lu=%lu", i, mixed_lock_silo_cnts[i]);
-  }
-
-  fprintf(outf,"\nmixedlock_calvin_cnts\n");
-  for(uint64_t i = 0; i < SECOND; i ++) {
-    fprintf(outf,",ccnts%lu=%lu", i, mixed_lock_calvin_cnts[i]);
-  }
-
-  fprintf(outf,"\ntputs\n");
-  for(uint64_t i = 0; i < SECOND; i ++) {
-    fprintf(outf, ", tputs%lu=%lu",i,tputs[i]);
-  }
-#endif
-  fprintf(outf,"\n");
-
   // Concurrency control, general
   fprintf(outf,
     ",cc_conflict_cnt=%ld"
@@ -1366,6 +1329,34 @@ void Stats_thd::print(FILE * outf, bool prog) {
         (double)start_abort_commit_latency.get_idx(start_abort_commit_latency.cnt - 1) / BILLION,
         (double)start_abort_commit_latency.get_avg() / BILLION, start_abort_commit_latency.cnt);
   }
+  #if STATS_EVERY_INTERVAL
+  fprintf(outf,"\nrow_conflict_total_cnts\n");
+  //Conflict statistics thread
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf,",tcnt%lu=%lu",i,row_conflict_total_cnt[i]);
+  }
+
+  fprintf(outf,"\nrow_conflict_highest_cnts\n");
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf,",hcnt%lu=%lu",i,row_conflict_highest_cnt[i]);
+  }
+
+  fprintf(outf,"\nmixedlock_silo_cnts\n");
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf,",scnts%lu=%lu", i, mixed_lock_silo_cnts[i]);
+  }
+
+  fprintf(outf,"\nmixedlock_calvin_cnts\n");
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf,",ccnts%lu=%lu", i, mixed_lock_calvin_cnts[i]);
+  }
+
+  fprintf(outf,"\ntputs\n");
+  for(uint64_t i = 0; i < SECOND; i ++) {
+    fprintf(outf, ", tputs%lu=%lu",i,tputs[i]);
+  }
+  fprintf(outf,"\n");
+#endif
 
   //first_start_commit_latency.print(outf);
 
