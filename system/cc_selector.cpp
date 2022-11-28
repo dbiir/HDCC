@@ -18,9 +18,6 @@ CCSelector::~CCSelector(){
     delete [] is_high_conflict;
 }
 int CCSelector::get_best_cc(Message *msg){
-    if(msg->rtype == RTXN){
-        msg->rtype = CL_QRY;
-    }
 // Prorate transactions to Silo as non-deterministic workload
 #if PRORATE_TRANSACTION
     else{
@@ -31,14 +28,15 @@ int CCSelector::get_best_cc(Message *msg){
     }
 #endif
 #if WORKLOAD == YCSB
-    auto req=((YCSBClientQueryMessage*)msg)->requests;
-    for(uint64_t i=0;i<req.size();i++){
-        auto shard = key_to_shard(req[i]->key);
-        if(is_high_conflict[shard]){//if txn visits high contention shard, use CALVIN
+    auto req = ((YCSBClientQueryMessage*)msg)->requests;
+    for(uint64_t i = 0; i < req.size(); i++){
+        uint64_t shard = key_to_shard(req[i]->key);
+        if((shard % g_node_cnt != g_node_id) || is_high_conflict[shard]){
+            // txn that accesses multi partition or high conflict shard, use CALVIN
             return CALVIN;
         }
     }
-    return SILO;//if txn visits only low contention shards, use SILO
+    return SILO;//txn that accesses single partition as well as low conflict shard, use SILO
 #elif WORKLOAD == TPCC
     auto tpcc_msg = (TPCCClientQueryMessage*)msg;
     uint64_t w_id = tpcc_msg->w_id;
