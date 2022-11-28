@@ -70,9 +70,9 @@ void row_t::init_manager(row_t * row) {
 #endif
 	DEBUG_M("row_t::init_manager alloc \n");
 #if CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == CALVIN
-	// manager = (Row_lock *) mem_allocator.align_alloc(sizeof(Row_lock));
+	manager = (Row_lock *) mem_allocator.align_alloc(sizeof(Row_lock));
 	// lead to tput improvement, this change aims to let tput of original CALVIN catch up with MIXED_LOCK's CALVIN
-	manager = new Row_lock();
+	// manager = new Row_lock();
 #elif CC_ALG == TIMESTAMP
 	manager = (Row_ts *) mem_allocator.align_alloc(sizeof(Row_ts));
 #elif CC_ALG == MVCC
