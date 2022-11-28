@@ -45,6 +45,8 @@ uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t abort_cn
 #if CC_ALG == MIXED_LOCK
   Message * msg = Message::create_message(RTXN);
   msg->copy_from_txn(txn);
+  msg->orig_txn_id = txn_id;
+  msg->orig_batch_id = txn->get_batch_id();
   msg->return_node_id = txn->client_id;
   entry->msg = msg;
 #endif

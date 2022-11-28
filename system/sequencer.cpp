@@ -267,10 +267,15 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 #if CC_ALG == MIXED_LOCK
 		if (cc_selector.get_best_cc(msg) == SILO) {
 			msg->algo = SILO;
+			if(msg->rtype == RTXN){
+				msg->txn_id = msg->orig_txn_id;
+				msg->batch_id = msg->orig_batch_id;
+			}
 			work_queue.enqueue(thd_id, msg, false);
 			return;
 		} else {
 			msg->algo = CALVIN;
+			msg->rtype = CL_QRY;
 		}
 #endif
 

@@ -45,6 +45,7 @@ public:
 #if CC_ALG == MIXED_LOCK
   uint64_t original_return_node_id;
   int algo;
+  uint64_t orig_txn_id, orig_batch_id;
 #endif
 
   uint64_t wq_time;

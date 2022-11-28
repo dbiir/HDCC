@@ -392,10 +392,7 @@ void TxnManager::reset() {
 #endif
 	ready_part = 0;
 	rsp_cnt = 0;
-// We need to keep this state to ensure that the request is not released when the TxnManager is released, the state is reset in the release function
-#if CC_ALG != MIXED_LOCK
 	aborted = false;
-#endif
 	return_id = UINT64_MAX;
 	twopl_wait_start = 0;
 
@@ -428,22 +425,7 @@ void TxnManager::reset() {
 void TxnManager::release() {
 	uint64_t prof_starttime = get_sys_clock();
 #if CC_ALG == MIXED_LOCK
-	if (!aborted) {
-		qry_pool.put(get_thd_id(),query, algo);
-	}else{
-		//	in MIXED_LOCK, aborted txn need to restart with new txn id and batch id,
-		//	so we free the original txn manager and we have copied and stored corresponding interior information into abort_queue
-		// 	so we don't need the original info anymore, free them here
-	#if WORKLOAD == YCSB
-		query->release();	//basequery release
-		((YCSBQuery*)query)->requests.release();
-	#elif WORKLOAD == TPCC
-		query->release();	//basequery release
-		((TPCCQuery*)query)->items.release();
-	#endif
-		delete query;
-	}
-	aborted = false;
+	qry_pool.put(get_thd_id(),query, algo);
 #else
 	qry_pool.put(get_thd_id(),query);
 #endif
@@ -757,7 +739,7 @@ void TxnManager::commit_stats() {
 	DEBUG("Commit_stats execute_time %ld warmup_time %ld\n",warmuptime,g_warmup_timer);
 	if (simulation->is_warmup_done())
 		DEBUG("Commit_stats total_txn_commit_cnt %ld\n",stats._stats[get_thd_id()]->total_txn_commit_cnt);
-	if(!IS_LOCAL(get_txn_id()) && CC_ALG != CALVIN) {
+	if(get_txn_id() % g_node_cnt != g_node_id) {
 #if CC_ALG == MIXED_LOCK
 		if (algo == CALVIN) {
 			// INC_STATS(get_thd_id(), txn_run_time, timespan_long);

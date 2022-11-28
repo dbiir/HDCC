@@ -40,6 +40,9 @@
 #include "ssi.h"
 #include "focc.h"
 #include "bocc.h"
+#if CC_ALG == MIXED_LOCK
+#include "cc_selector.h"
+#endif
 
 void WorkerThread::setup() {
 	if( get_thd_id() == 0) {
@@ -332,14 +335,11 @@ void WorkerThread::abort() {
   #if CC_ALG == MIXED_LOCK
   uint64_t penalty =
       abort_queue.enqueue(get_thd_id(), txn_man->get_txn_id(), txn_man, txn_man->get_abort_cnt());
-  // When a transaction abort in mixed_lock, it will get a new batch_id and txn_id in next turn,
-  // so we destroy this txn, although this step will lost some stats.
-  release_txn_man();
   #else
   uint64_t penalty =
       abort_queue.enqueue(get_thd_id(), txn_man->get_txn_id(), txn_man->get_abort_cnt());
-  txn_man->txn_stats.total_abort_time += penalty;
   #endif
+  txn_man->txn_stats.total_abort_time += penalty;
   #endif
 }
 
@@ -1161,6 +1161,10 @@ RC StatsPerIntervalThread::run(){
       INC_STATS(_thd_id, tputs[loop], (txn_cnt_this_time - txn_cnt_last_time));
       INC_STATS(_thd_id, mixed_lock_silo_cnts[loop], silo_cnt_this_time - silo_cnt_last_time);
       INC_STATS(_thd_id, mixed_lock_calvin_cnts[loop], calvin_cnt_this_time - calvin_cnt_last_time);
+    #if CC_ALG == MIXED_LOCK
+      INC_STATS(_thd_id, row_conflict_total_cnt[loop], cc_selector.get_total_conflict());
+      INC_STATS(_thd_id, row_conflict_highest_cnt[loop], cc_selector.get_highest_conflict());
+    #endif
       txn_cnt_last_time = txn_cnt_this_time;
       silo_cnt_last_time = silo_cnt_this_time;
       calvin_cnt_last_time = calvin_cnt_this_time;
