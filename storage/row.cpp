@@ -98,11 +98,11 @@ void row_t::init_manager(row_t * row) {
 #elif CC_ALG == CNULL
 	manager = (Row_null *) mem_allocator.align_alloc(sizeof(Row_null));
 #elif CC_ALG == MIXED_LOCK
-	// 	since insert operation is inroduced in TPCC, get_new_row function is continuously invoked during runtime,
+	// 	since insert operation is introduced in TPCC, get_new_row function is continuously invoked during runtime,
 	// 	which overwhelms the part of initialization of row manager
 	//	we find that using new instead of mem_allocator can get rid of this bottle neck to some extent
-	manager = new Row_mixed_lock();
-	// manager = (Row_mixed_lock *) mem_allocator.align_alloc(sizeof(Row_mixed_lock));
+	// manager = new Row_mixed_lock();
+	manager = (Row_mixed_lock *) mem_allocator.align_alloc(sizeof(Row_mixed_lock));
 #elif CC_ALG == SILO
     manager = (Row_silo *) mem_allocator.align_alloc(sizeof(Row_silo));
 #endif
