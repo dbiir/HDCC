@@ -20,11 +20,9 @@ CCSelector::~CCSelector(){
 int CCSelector::get_best_cc(Message *msg){
 // Prorate transactions to Silo as non-deterministic workload
 #if PRORATE_TRANSACTION
-    else{
-        double x = (double)(rand() % 10000) / 10000;
-        if (x < g_prorate_ratio) {
-            return SILO;
-        }
+    double r = (double)(rand() % 10000) / 10000;
+    if (r < g_prorate_ratio) {
+        return SILO;
     }
 #endif
 #if WORKLOAD == YCSB
