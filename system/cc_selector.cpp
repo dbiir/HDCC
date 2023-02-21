@@ -21,10 +21,10 @@ int CCSelector::get_best_cc(Message *msg){
 // Prorate transactions to Silo as non-deterministic workload
 #if PRORATE_TRANSACTION
     if(msg->rtype == CL_QRY){
-    double r = (double)(rand() % 10000) / 10000;
-    if (r < g_prorate_ratio) {
-        return SILO;
-    }
+        double r = (double)(rand() % 10000) / 10000;
+        if (r < g_prorate_ratio) {
+            return SILO;
+        }
     }
 #endif
 #if WORKLOAD == YCSB
@@ -54,62 +54,62 @@ int CCSelector::get_best_cc(Message *msg){
             if(GET_NODE_ID(part_id_w) != g_node_id || GET_NODE_ID(part_id_c_w) != g_node_id){
                 return CALVIN;
             }
-			    // WH
-                key = w_id;
-                key += TPCCTableKey::WAREHOUSE_OFFSET;
-                shard = key_to_shard(key);
-                if(is_high_conflict[shard]){
-                    return CALVIN;
-                }
-			    // Dist
-			    key = distKey(d_id, d_w_id);
-                key += TPCCTableKey::DISTRICT_OFFSET;
-				shard = key_to_shard(key);
-                if(is_high_conflict[shard]){
-                    return CALVIN;
-                }
-			    // Cust
-				if (tpcc_msg->by_last_name) {
-				    key = custNPKey(c_last, c_d_id, c_w_id);
-                    key += TPCCTableKey::CUST_BY_NAME_OFFSET;
-                    shard = key_to_shard(key);
-                    if(is_high_conflict[shard]){
-                        return CALVIN;
-                    }
-				} else {
-					key = custKey(c_id, c_d_id, c_w_id);
-                    key += TPCCTableKey::CUST_BY_ID_OFFSET;
-                    shard = key_to_shard(key);
-                    if(is_high_conflict[shard]){
-                        return CALVIN;
-                    }
-				}
-			break;
-		case TPCC_NEW_ORDER:
-            if(GET_NODE_ID(part_id_w) != g_node_id){
+            // WH
+            key = w_id;
+            key += TPCCTableKey::WAREHOUSE_OFFSET;
+            shard = key_to_shard(key);
+            if(is_high_conflict[shard]){
                 return CALVIN;
             }
-			    // WH
-                key = w_id;
-                key += TPCCTableKey::WAREHOUSE_OFFSET;
+            // Dist
+            key = distKey(d_id, d_w_id);
+            key += TPCCTableKey::DISTRICT_OFFSET;
+            shard = key_to_shard(key);
+            if(is_high_conflict[shard]){
+                return CALVIN;
+            }
+			// Cust
+            if (tpcc_msg->by_last_name) {
+                key = custNPKey(c_last, c_d_id, c_w_id);
+                key += TPCCTableKey::CUST_BY_NAME_OFFSET;
                 shard = key_to_shard(key);
                 if(is_high_conflict[shard]){
                     return CALVIN;
                 }
-			    // Cust
-                key = custKey(c_id, d_id, w_id);
+            } else {
+                key = custKey(c_id, c_d_id, c_w_id);
                 key += TPCCTableKey::CUST_BY_ID_OFFSET;
                 shard = key_to_shard(key);
                 if(is_high_conflict[shard]){
                     return CALVIN;
                 }
-                // Dist
-                key = distKey(d_id, w_id);
-                key += TPCCTableKey::DISTRICT_OFFSET;
-                shard = key_to_shard(key);
-                if(is_high_conflict[shard]){
-                    return CALVIN;
-                }
+            }
+			break;
+		case TPCC_NEW_ORDER:
+            if(GET_NODE_ID(part_id_w) != g_node_id){
+                return CALVIN;
+            }
+            // WH
+            key = w_id;
+            key += TPCCTableKey::WAREHOUSE_OFFSET;
+            shard = key_to_shard(key);
+            if(is_high_conflict[shard]){
+                return CALVIN;
+            }
+            // Cust
+            key = custKey(c_id, d_id, w_id);
+            key += TPCCTableKey::CUST_BY_ID_OFFSET;
+            shard = key_to_shard(key);
+            if(is_high_conflict[shard]){
+                return CALVIN;
+            }
+            // Dist
+            key = distKey(d_id, w_id);
+            key += TPCCTableKey::DISTRICT_OFFSET;
+            shard = key_to_shard(key);
+            if(is_high_conflict[shard]){
+                return CALVIN;
+            }
             // Items
             for(uint64_t i = 0; i < tpcc_msg->ol_cnt; i++) {
                 if(GET_NODE_ID(wh_to_part(tpcc_msg->items[i]->ol_supply_w_id)) != g_node_id){
@@ -153,7 +153,7 @@ void CCSelector::update_conflict_stats(TPCCQuery *query, row_t * row){
 	uint64_t d_w_id = query->d_w_id;
 	uint64_t c_w_id = query->c_w_id;
 	uint64_t c_d_id = query->c_d_id;
-	char * c_last = query->c_last;
+	char * c_last = query->c_last;    
     if(strcmp(table_name, "WAREHOUSE") == 0){
         key += TPCCTableKey::WAREHOUSE_OFFSET;
     }else if(strcmp(table_name, "DISTRICT") == 0){
