@@ -161,7 +161,9 @@ void CCSelector::update_conflict_stats(TPCCQuery *query, row_t * row){
     }else if(strcmp(table_name, "STOCK") == 0){
         key += TPCCTableKey::STOCK_OFFSET;
     }else if(strcmp(table_name, "CUSTOMER") == 0){
-        if(query->by_last_name){
+        // only PAYMENT txns will index table customer by name
+        // in NEW_ORDER txn, by_last_name is meaningless and maybe is not false
+        if(query->txn_type == TPCC_PAYMENT && query->by_last_name){
             key = custNPKey(query->c_last, query->c_d_id, query->c_w_id);
             key += TPCCTableKey::CUST_BY_NAME_OFFSET;
         }else{
