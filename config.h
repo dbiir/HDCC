@@ -274,7 +274,7 @@
 // If TPCC_ACCESS_ALL == fales, then these parts of the transactions
 // are not modeled.
 #define TPCC_ACCESS_ALL       false
-#define WH_UPDATE         true
+#define WH_UPDATE         false
 #define NUM_WH PART_CNT
 // % of transactions that access multiple partitions
 #define MPR 1.0

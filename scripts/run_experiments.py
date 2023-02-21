@@ -19,7 +19,6 @@ PATH=os.getcwd()
 
 result_dir = PATH + "/results/" + strnow + '/'
 perf_dir = result_dir + 'perf/'
-simple_summary_file = 'simple_summary.out'
 
 cfgs = configs
 
@@ -94,7 +93,9 @@ for exp in exps:
 
         cmd = "make clean; make deps; make -j32"
         print(cmd)
-        os.system(cmd)
+        res = os.system(cmd)
+        if res != 0:
+            sys.exit('fail to compile\n')
         if not execute:
             exit()
 
@@ -188,16 +189,14 @@ for exp in exps:
                     pids[n].wait()
         tmp_path = os.getcwd()
         os.chdir(result_dir)
-        cmd = 'echo nodes: {} >> {}'.format(machines[:cfgs['NODE_CNT']], simple_summary_file)
-        os.system(cmd)
-        cmd = 'echo "basic configs" >> {}'.format(simple_summary_file)
-        os.system(cmd)
-        cmd = 'echo {} >> {}'.format(str(fmt), simple_summary_file)
-        os.system(cmd)
-        cmd = 'echo {} >> {}'.format(str(e), simple_summary_file)
-        os.system(cmd)
+        simple_f = open('simple_summary.out', 'a')
+        simple_f.write('nodes: ' + str(machines[:cfgs['NODE_CNT']]) + '\n')
+        simple_f.write('Basic config' + '\n')
+        simple_f.write(str(fmt) + '\n')
+        simple_f.write(str(e) + '\n')
         for i in range(cfgs['NODE_CNT']):
-            cmd = 'ls | grep %s'%(str(str(i) + '_' + str(cfgs['CC_ALG']))) + '| xargs cat | grep summary | awk \'{print$2}\''
+            searchfile = str(i) + '_' + output_f + '.out'
+            cmd = 'cat %s'%(searchfile) + '| grep summary | awk \'{print$2}\''
             res = ''.join(os.popen(cmd).readlines())
             res = res.strip('\n')
             res = res.replace('=', '": "')
@@ -205,10 +204,10 @@ for exp in exps:
             res = '{"' + res + '"}'
             metrics_dict = ast.literal_eval(res)
             # output tput metric into simple_summary file, you can add any other metric that exists in the first row of original summary file
-            # note that row_conflict_total_cnts is second row of original summary file so you can not see it in metrics_dict
-            metirc = metrics_dict['tput']
-            cmd = 'echo tput = {} >> {}'.format(metirc, simple_summary_file)
-            os.system(cmd)
+            # note that row_conflict_total_cnts and all other below metrics can not be grabbed since they do not come in first row
+            metric = metrics_dict['tput']
+            simple_f.write('tput = ' + metric + '\n')
+        simple_f.close()
         os.chdir(tmp_path)
 
 
