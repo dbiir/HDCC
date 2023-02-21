@@ -162,7 +162,7 @@ BaseQuery * TPCCQueryGenerator::gen_payment(uint64_t home_partition) {
 #ifdef NO_REMOTE
   if(x >= 0) {
 #else
-	if(x > 0.15) {
+	if(x > 0.05) {
 #endif
 		// home warehouse
 		query->c_d_id = query->d_id;
@@ -171,13 +171,13 @@ BaseQuery * TPCCQueryGenerator::gen_payment(uint64_t home_partition) {
 		// remote warehouse
 		query->c_d_id = URand(1, g_dist_per_wh);
 		if(g_num_wh > 1) {
-      while ((query->c_w_id = URand(1, g_num_wh)) == query->w_id) {
+      //we need to assure that txn access remote partition at least once
+      while(wh_to_part(query->c_w_id = URand(1, g_num_wh)) == home_partition){
       }
-			if (wh_to_part(query->w_id) != wh_to_part(query->c_w_id)) {
-        partitions_accessed.insert(wh_to_part(query->c_w_id));
-			}
-		} else
+      partitions_accessed.insert(wh_to_part(query->c_w_id));
+		} else{
       query->c_w_id = query->w_id;
+    }
 	}
 	if(y <= 60) {
 		// by last name
@@ -204,9 +204,10 @@ BaseQuery * TPCCQueryGenerator::gen_new_order(uint64_t home_partition) {
   query->items.init(g_max_items_per_txn);
 	if (FIRST_PART_LOCAL) {
     while (wh_to_part(query->w_id = URand(1, g_num_wh)) != home_partition) {
+    }
+  } else{
+    query->w_id = URand(1, g_num_wh);
   }
-  } else
-		query->w_id = URand(1, g_num_wh);
 
 	query->d_id = URand(1, g_dist_per_wh);
 	query->c_id = NURand(1023, 1, g_cust_per_dist);
@@ -237,13 +238,18 @@ BaseQuery * TPCCQueryGenerator::gen_new_order(uint64_t home_partition) {
     }
     ol_i_ids.insert(item->ol_i_id);
     item->ol_quantity = URand(1, 10);
-    double r_rem = (double)(rand() % 100000) / 100000;
-		if (r_rem > 0.01 || r_mpr > g_mpr || g_num_wh == 1) {
+		if (r_mpr > g_mpr || g_num_wh == 1) {
 			// home warehouse
 			item->ol_supply_w_id = query->w_id;
     } else {
       if(partitions_accessed.size() < part_limit) {
-        item->ol_supply_w_id = URand(1, g_num_wh);
+        if(query->items.size() == 0){
+          //we need to assure that txn access remote partition at least once
+          while(wh_to_part(item->ol_supply_w_id = URand(1, g_num_wh)) == home_partition){
+          }
+        }else{
+          item->ol_supply_w_id = URand(1, g_num_wh);
+        }
         partitions_accessed.insert(wh_to_part(item->ol_supply_w_id));
       } else {
         // select warehouse from among those already selected
