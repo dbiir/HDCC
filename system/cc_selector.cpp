@@ -51,7 +51,9 @@ int CCSelector::get_best_cc(Message *msg){
     uint64_t key, shard;
 	switch(tpcc_msg->txn_type) {
 		case TPCC_PAYMENT:
-			if(GET_NODE_ID(part_id_w) == g_node_id) {
+            if(GET_NODE_ID(part_id_w) != g_node_id || GET_NODE_ID(part_id_c_w) != g_node_id){
+                return CALVIN;
+            }
 			    // WH
                 key = w_id;
                 key += TPCCTableKey::WAREHOUSE_OFFSET;
@@ -66,8 +68,6 @@ int CCSelector::get_best_cc(Message *msg){
                 if(is_high_conflict[shard]){
                     return CALVIN;
                 }
-			}
-			if(GET_NODE_ID(part_id_c_w) == g_node_id) {
 			    // Cust
 				if (tpcc_msg->by_last_name) {
 				    key = custNPKey(c_last, c_d_id, c_w_id);
@@ -84,10 +84,11 @@ int CCSelector::get_best_cc(Message *msg){
                         return CALVIN;
                     }
 				}
-			}
 			break;
 		case TPCC_NEW_ORDER:
-			if(GET_NODE_ID(part_id_w) == g_node_id) {
+            if(GET_NODE_ID(part_id_w) != g_node_id){
+                return CALVIN;
+            }
 			    // WH
                 key = w_id;
                 key += TPCCTableKey::WAREHOUSE_OFFSET;
@@ -109,10 +110,11 @@ int CCSelector::get_best_cc(Message *msg){
                 if(is_high_conflict[shard]){
                     return CALVIN;
                 }
-			}
             // Items
             for(uint64_t i = 0; i < tpcc_msg->ol_cnt; i++) {
-                if (GET_NODE_ID(wh_to_part(tpcc_msg->items[i]->ol_supply_w_id)) != g_node_id) continue;
+                if(GET_NODE_ID(wh_to_part(tpcc_msg->items[i]->ol_supply_w_id)) != g_node_id){
+                    return CALVIN;
+                }
                 // item
                 key = tpcc_msg->items[i]->ol_i_id;
                 key += TPCCTableKey::ITEM_OFFSET;
@@ -179,8 +181,10 @@ void CCSelector::update_conflict_stats(TPCCQuery *query, row_t * row){
 
 void CCSelector::update_ccselector(){
 #if WORKLOAD == TPCC
-    uint64_t start_shard = key_to_shard(TPCCTableKey::CUST_BY_ID_START+TPCCTableKey::CUST_BY_ID_OFFSET);
-    uint64_t end_shard = key_to_shard(TPCCTableKey::CUST_BY_ID_END+TPCCTableKey::CUST_BY_ID_OFFSET);
+    // Scaling is needed for customer table
+    uint64_t start_shard, end_shard;
+    start_shard = key_to_shard(TPCCTableKey::CUST_BY_ID_START + TPCCTableKey::CUST_BY_ID_OFFSET);
+    end_shard = key_to_shard(TPCCTableKey::CUST_BY_ID_END + TPCCTableKey::CUST_BY_ID_OFFSET);
     for(uint64_t i = start_shard; i < end_shard; i++){
         //  for table Customer, 60% cases we use index Customer_by_ID, so we need some scaling up to restore true conflict value
         pstats[i] = pstats[i] / 0.6;
