@@ -224,10 +224,10 @@ UInt64 g_data_shard_size = SHARD_SIZE;
 UInt64 g_lower_bound=LOWER_BOUND;
 UInt64 g_upper_bound=UPPER_BOUND;
 #if WORKLOAD == YCSB
-UInt64 g_total_shard_num=g_synth_table_size/g_data_shard_size+1;//+1 to prevent from overflow
+UInt64 g_total_shard_num=g_synth_table_size/g_data_shard_size+g_node_cnt;
 #elif WORKLOAD == TPCC
-//max key plus corresponding offest, +1 to prevent overflow
-UInt64 g_total_shard_num = (TPCCTableKey::CUST_BY_NAME_END + TPCCTableKey::CUST_BY_NAME_OFFSET) / g_data_shard_size + 1;
+//max key plus corresponding offest
+UInt64 g_total_shard_num = (TPCCTableKey::CUST_BY_NAME_END + TPCCTableKey::CUST_BY_NAME_OFFSET) / g_data_shard_size + g_node_cnt;
 #endif
 UInt64 g_conflict_send_interval = CONFLICT_SEND_INTERVAL;
 double g_prorate_ratio = PRORATE_RATIO;
