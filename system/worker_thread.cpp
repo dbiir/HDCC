@@ -423,11 +423,13 @@ RC WorkerThread::run() {
       idle_starttime = 0;
     }
     //uint64_t starttime = get_sys_clock();
-
+#if CC_ALG == MIXED_LOCK
+    if((msg->rtype != CL_QRY && msg->rtype != CL_QRY_O) || msg->algo == CALVIN){
+      txn_man = get_transaction_manager(msg);
+      txn_man->algo = msg->algo;
+#else
     if((msg->rtype != CL_QRY && msg->rtype != CL_QRY_O) || CC_ALG == CALVIN) {
       txn_man = get_transaction_manager(msg);
-#if CC_ALG == MIXED_LOCK
-      txn_man->algo = msg->algo;
 #endif
 
       if (CC_ALG != CALVIN && IS_LOCAL(txn_man->get_txn_id())) {
