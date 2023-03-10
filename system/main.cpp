@@ -66,7 +66,7 @@ InputThread * input_thds;
 OutputThread * output_thds;
 AbortThread * abort_thds;
 LogThread * log_thds;
-#if CC_ALG == CALVIN
+#if CC_ALG == CALVIN || CC_ALG == SNAPPER
 CalvinLockThread * calvin_lock_thds;
 CalvinSequencerThread * calvin_seq_thds;
 #endif
@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
 	fflush(stdout);
 	txn_table.init();
 	printf("Done\n");
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	printf("Initializing sequencer... ");
 	fflush(stdout);
 	seq_man.init(m_wl);
@@ -294,7 +294,7 @@ int main(int argc, char *argv[]) {
 #if LOGGING
 		all_thd_cnt += 1; // logger thread
 #endif
-#if CC_ALG == CALVIN
+#if CC_ALG == CALVIN || CC_ALG == SNAPPER
 		all_thd_cnt += 2; // sequencer + scheduler thread
 #endif
 #if CC_ALG == MIXED_LOCK
@@ -321,7 +321,7 @@ int main(int argc, char *argv[]) {
 	stats_per_interval_thds = new StatsPerIntervalThread[1];
 #endif
 
-#if CC_ALG == CALVIN
+#if CC_ALG == CALVIN || CC_ALG == SNAPPER
 	calvin_lock_thds = new CalvinLockThread[1];
 	calvin_seq_thds = new CalvinSequencerThread[1];
 #endif
@@ -416,7 +416,7 @@ int main(int argc, char *argv[]) {
 	pthread_create(&p_thds[id++], NULL, run_thread, (void *)&abort_thds[0]);
 #endif
 
-#if CC_ALG == CALVIN
+#if CC_ALG == CALVIN || CC_ALG == SNAPPER
 #if SET_AFFINITY
 	CPU_ZERO(&cpus);
 	CPU_SET(cpu_cnt, &cpus);

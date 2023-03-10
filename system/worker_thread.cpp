@@ -104,7 +104,7 @@ void WorkerThread::fakeprocess(Message * msg) {
 			case RTXN:
 #if CC_ALG == CALVIN
         rc = process_calvin_rtxn(msg);
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
         if (msg->algo == CALVIN) {
           rc = process_calvin_rtxn(msg);
         } else {
@@ -197,7 +197,7 @@ void WorkerThread::process(Message * msg) {
 			case RTXN:
 #if CC_ALG == CALVIN
         rc = process_calvin_rtxn(msg);
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
         if (msg->algo == CALVIN) {
           rc = process_calvin_rtxn(msg);
         } else {
@@ -332,7 +332,7 @@ void WorkerThread::abort() {
   INC_STATS(get_thd_id(), trans_abort_count, 1);
   INC_STATS(get_thd_id(), trans_total_count, 1);
   #if WORKLOAD != DA //actually DA do not need real abort. Just count it and do not send real abort msg.
-  #if CC_ALG == MIXED_LOCK
+  #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   uint64_t penalty =
       abort_queue.enqueue(get_thd_id(), txn_man->get_txn_id(), txn_man, txn_man->get_abort_cnt());
   #else
@@ -344,7 +344,7 @@ void WorkerThread::abort() {
 }
 
 TxnManager * WorkerThread::get_transaction_manager(Message * msg) {
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   TxnManager* local_txn_man =
       txn_table.get_transaction_manager(get_thd_id(), msg->get_txn_id(), msg->get_batch_id());
 #else
@@ -423,7 +423,7 @@ RC WorkerThread::run() {
       idle_starttime = 0;
     }
     //uint64_t starttime = get_sys_clock();
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
     if((msg->rtype != CL_QRY && msg->rtype != CL_QRY_O) || msg->algo == CALVIN){
       txn_man = get_transaction_manager(msg);
       txn_man->algo = msg->algo;
@@ -477,7 +477,7 @@ RC WorkerThread::run() {
       }
       txn_man->register_thread(this);
     }
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
     if (msg->rtype == CL_QRY) {
       txn_man = get_transaction_manager(msg);
       txn_man->algo = msg->algo;
@@ -511,13 +511,13 @@ RC WorkerThread::run() {
     // delete message
     ready_starttime = get_sys_clock();
 #if CC_ALG != CALVIN
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   if (msg->algo == CALVIN) {
   } else {
 #endif
     msg->release();
     delete msg;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   }
 #endif
 #endif
@@ -552,7 +552,7 @@ RC WorkerThread::process_rfin(Message * msg) {
   //if(!txn_man->query->readonly() || CC_ALG == OCC)
   if (!((FinishMessage*)msg)->readonly || CC_ALG == MAAT || CC_ALG == OCC || CC_ALG == TICTOC ||
        CC_ALG == BOCC || CC_ALG == SSI || CC_ALG == DLI_BASE ||
-       CC_ALG == DLI_OCC || CC_ALG == SILO || CC_ALG == MIXED_LOCK) {
+       CC_ALG == DLI_OCC || CC_ALG == SILO || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER) {
     msg_queue.enqueue(get_thd_id(), Message::create_message(txn_man, RACK_FIN),
                       GET_NODE_ID(msg->get_txn_id()));
   }
@@ -749,6 +749,7 @@ RC WorkerThread::process_rqry(Message * msg) {
   return rc;
 }
 
+#if CC_ALG != SNAPPER
 RC WorkerThread::process_rqry_cont(Message * msg) {
   DEBUG("RQRY_CONT %ld\n",msg->get_txn_id());
   assert(!IS_LOCAL(msg->get_txn_id()));
@@ -764,8 +765,32 @@ RC WorkerThread::process_rqry_cont(Message * msg) {
   }
   return rc;
 }
+#else
+RC WorkerThread::process_rqry_cont(Message * msg) {
+  DEBUG("RQRY_CONT %ld\n",msg->get_txn_id());
+  assert(!IS_LOCAL(msg->get_txn_id()));
+  RC rc = RCOK;
 
+  if (txn_man->isTimeout) {
+    RC rc = txn_man->abort();
+    if(rc != WAIT) {
+      msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,RQRY_RSP),txn_man->return_id);
+    }
+  } else {
+    txn_man->run_txn_post_wait();
+    txn_man->send_RQRY_RSP = false;
+    rc = txn_man->run_txn();
 
+    // Send response
+    if(rc != WAIT) {
+      msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,RQRY_RSP),txn_man->return_id);
+    }
+  }
+  return rc;
+}
+#endif
+
+#if CC_ALG != SNAPPER
 RC WorkerThread::process_rtxn_cont(Message * msg) {
   DEBUG("RTXN_CONT %ld\n",msg->get_txn_id());
   assert(IS_LOCAL(msg->get_txn_id()));
@@ -778,6 +803,26 @@ RC WorkerThread::process_rtxn_cont(Message * msg) {
   check_if_done(rc);
   return RCOK;
 }
+#else
+RC WorkerThread::process_rtxn_cont(Message * msg) {
+  DEBUG("RTXN_CONT %ld\n",msg->get_txn_id());
+  assert(IS_LOCAL(msg->get_txn_id()));
+
+  txn_man->txn_stats.local_wait_time += get_sys_clock() - txn_man->txn_stats.wait_starttime;
+
+  if (txn_man->isTimeout) {
+    // printf("txn: %ld abort for timeout\n", txn_man->get_txn_id());
+    RC rc = txn_man->abort();
+    check_if_done(rc);
+  } else {
+    txn_man->run_txn_post_wait();
+    txn_man->send_RQRY_RSP = false;
+    RC rc = txn_man->run_txn();
+    check_if_done(rc);
+  }
+  return RCOK;
+}
+#endif
 
 RC WorkerThread::process_rprepare(Message * msg) {
   DEBUG("RPREP %ld\n",msg->get_txn_id());
@@ -822,8 +867,8 @@ RC WorkerThread::process_rtxn(Message * msg) {
       msg->txn_id=((DAClientQueryMessage*)msg)->trans_id;
       txn_id=((DAClientQueryMessage*)msg)->trans_id;
     #else
-    #if CC_ALG == MIXED_LOCK
-      if (msg->algo == SILO) {
+    #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+      if (msg->algo != CALVIN) {
         batch_id = msg->batch_id;
         txn_id = msg->txn_id;
       } else {
@@ -838,7 +883,7 @@ RC WorkerThread::process_rtxn(Message * msg) {
     if (!txn_man)
     {
       txn_man = txn_table.get_transaction_manager(get_thd_id(),txn_id,batch_id);
-      #if CC_ALG == MIXED_LOCK
+      #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
         txn_man->algo = msg->algo;
       #endif
       txn_man->register_thread(this);
@@ -847,7 +892,7 @@ RC WorkerThread::process_rtxn(Message * msg) {
     bool ready = txn_man->unset_ready();
     INC_STATS(get_thd_id(),worker_activate_txn_time,get_sys_clock() - ready_starttime);
     assert(ready);
-    if (CC_ALG == WAIT_DIE) {
+    if (CC_ALG == WAIT_DIE || (CC_ALG == SNAPPER && txn_man->algo == WAIT_DIE)) {
       #if WORKLOAD == DA //mvcc use timestamp
         if (da_stamp_tab.count(txn_man->get_txn_id())==0)
         {
@@ -1021,7 +1066,7 @@ RC WorkerThread::process_log_flushed(Message * msg) {
 RC WorkerThread::process_rfwd(Message * msg) {
   DEBUG("RFWD (%ld,%ld)\n",msg->get_txn_id(),msg->get_batch_id());
   txn_man->txn_stats.remote_wait_time += get_sys_clock() - txn_man->txn_stats.wait_starttime;
-  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
+  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
   int responses_left = txn_man->received_response(((ForwardMessage*)msg)->rc);
   assert(responses_left >=0);
   if(txn_man->calvin_collect_phase_done()) {

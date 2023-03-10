@@ -23,6 +23,10 @@
 #include "array.h"
 #include "transport/message.h"
 //#include "wl.h"
+#if CC_ALG == SNAPPER
+#include <utility>
+#include <forward_list>
+#endif
 
 class Workload;
 class Thread;
@@ -159,6 +163,10 @@ public:
 	virtual RC      run_calvin_txn() = 0;
 	virtual RC      acquire_locks() = 0;
 	virtual RC 		send_remote_request() = 0;
+#if CC_ALG == SNAPPER
+	virtual void get_read_write_set() {};
+	virtual RC		acquire_lock(row_t * row, access_t acctype) {return RCOK;};
+#endif
 	void            register_thread(Thread * h_thd);
 	uint64_t        get_thd_id();
 	Workload *      get_wl();
@@ -208,6 +216,16 @@ public:
 	int             write_set[100];
     int*            read_set;
 	RC              finish(RC rc);
+#endif
+
+#if CC_ALG == SNAPPER
+	set<row_t *> wait_for_locks;
+	vector<pair<row_t *, access_t>> read_write_set;
+	int algo;
+	bool isTimeout;
+	row_t * wait_row;
+	set<int64_t> dependencies;
+	bool wait_for_locks_ready;
 #endif
 
 #if CC_ALG == SILO
@@ -338,6 +356,9 @@ protected:
 #if CC_ALG == MIXED_LOCK
 	bool 			_pre_abort=false;
 	RC				validate_silo();
+#endif
+#if CC_ALG == SNAPPER
+	RC				validate_snapper();
 #endif
 
 };

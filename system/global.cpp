@@ -167,7 +167,7 @@ UInt32 g_logger_thread_cnt = 0;
 #endif
 UInt32 g_stats_per_interval_thread_cnt = STATS_EVERY_INTERVAL;
 UInt32 g_send_thread_cnt = SEND_THREAD_CNT;
-#if CC_ALG == CALVIN
+#if CC_ALG == CALVIN || CC_ALG == SNAPPER
 // sequencer + scheduler thread
 UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + g_logger_thread_cnt + 3;
 #elif CC_ALG == MIXED_LOCK

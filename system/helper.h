@@ -130,6 +130,19 @@
       ltail = en;                       \
     }                                   \
   }
+#define LIST_PUT_HEAD(lhead, ltail, en) \
+  {                                     \
+    en->next = NULL;                    \
+    en->prev = NULL;                    \
+    if (lhead) {                        \
+      en->next = lhead;                 \
+      lhead->prev = en;                 \
+      lhead = en;                       \
+    } else {                            \
+      lhead = en;                       \
+      ltail = en;                       \
+    }                                   \
+  }
 #define LIST_INSERT_BEFORE(entry, newentry, lhead) \
   {                                                \
 	newentry->next = entry; \
@@ -137,6 +150,14 @@
 	if (entry->prev) entry->prev->next = newentry; \
 	entry->prev = newentry; \
     if (lhead == entry) lhead = newentry;          \
+  }
+#define LIST_INSERT_AFTER(entry, newentry, ltail) \
+  {                                               \
+    newentry->prev = entry;                       \
+    newentry->next = entry->next;                 \
+    if (entry->next) entry->next->prev = newentry;\
+    entry->next = newentry;                       \
+    if (ltail == entry) ltail = newentry;         \
   }
 #define LIST_REMOVE(entry)                            \
   {                                                   \

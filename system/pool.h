@@ -41,7 +41,7 @@ public:
   void free_all();
 
 private:
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   boost::lockfree::queue<TxnManager*> * pool;
 #else
   boost::lockfree::queue<TxnManager*> ** pool;
@@ -59,7 +59,7 @@ public:
   void free_all();
 
 private:
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   boost::lockfree::queue<Transaction*> * pool;
 #else
   boost::lockfree::queue<Transaction*> ** pool;
@@ -72,7 +72,7 @@ class QryPool {
 public:
   void init(Workload * wl, uint64_t size);
   void get(uint64_t thd_id, BaseQuery *& item);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   void put(uint64_t thd_id, BaseQuery * items, int algo);
 #else
   void put(uint64_t thd_id, BaseQuery * items);
@@ -80,7 +80,7 @@ public:
   void free_all();
 
 private:
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   boost::lockfree::queue<BaseQuery* > * pool;
 #else
   boost::lockfree::queue<BaseQuery* > ** pool;

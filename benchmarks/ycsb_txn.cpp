@@ -51,7 +51,7 @@ void YCSBTxnManager::reset() {
 
 RC YCSBTxnManager::acquire_locks() {
   uint64_t starttime = get_sys_clock();
-  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
+  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
   YCSBQuery* ycsb_query = (YCSBQuery*) query;
   locking_done = false;
   RC rc = RCOK;
@@ -89,6 +89,42 @@ RC YCSBTxnManager::acquire_locks() {
   return rc;
 }
 
+#if CC_ALG == SNAPPER
+void YCSBTxnManager::get_read_write_set() {
+  uint64_t starttime = get_sys_clock();
+  YCSBQuery* ycsb_query = (YCSBQuery*) query;
+  assert(ycsb_query->requests.size() == g_req_per_query);
+  assert(phase == CALVIN_RW_ANALYSIS);
+	for (uint32_t rid = 0; rid < ycsb_query->requests.size(); rid ++) {
+		ycsb_request * req = ycsb_query->requests[rid];
+		uint64_t part_id = _wl->key_to_part( req->key );
+    DEBUG("LK Acquire (%ld,%ld) %d,%ld -> %ld\n", get_txn_id(), get_batch_id(), req->acctype,
+          req->key, GET_NODE_ID(part_id));
+    if (GET_NODE_ID(part_id) != g_node_id) continue;
+		INDEX * index = _wl->the_index;
+		itemid_t * item;
+		item = index_read(index, req->key, part_id);
+		row_t * row = ((row_t *)item->location);
+    read_write_set.emplace_back(row, req->acctype);
+    wait_for_locks.insert(row);
+  }
+  INC_STATS(get_thd_id(),calvin_sched_time,get_sys_clock() - starttime);
+}
+
+RC YCSBTxnManager::acquire_lock(row_t * row, access_t acctype) {
+  RC rc = WAIT;
+  uint64_t starttime = get_sys_clock();
+  RC rc2 = get_lock(row,acctype);
+  if (rc2 == RCOK) {
+    if (wait_for_locks.empty()) {
+        if (ATOM_CAS(lock_ready, false, true)) {
+          rc = RCOK;
+        }
+    }
+  }
+  return rc;
+}
+#endif
 
 RC YCSBTxnManager::run_txn() {
   RC rc = RCOK;
@@ -345,7 +381,7 @@ RC YCSBTxnManager::run_calvin_txn() {
 
 RC YCSBTxnManager::run_ycsb() {
   RC rc = RCOK;
-  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
+  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
   YCSBQuery* ycsb_query = (YCSBQuery*) query;
 
   for (uint64_t i = 0; i < ycsb_query->requests.size(); i++) {

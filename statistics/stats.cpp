@@ -367,6 +367,11 @@ void Stats_thd::clear() {
   mixed_lock_calvin_cnt=0;
   mixed_lock_calvin_local_cnt=0;
 
+  //SNAPPER
+  snapper_false_deadlock = 0;
+  snapper_calvin_cnt = 0;
+  snapper_lock_cnt = 0;
+
   // Logging
   log_write_cnt=0;
   log_write_time=0;
@@ -1113,7 +1118,12 @@ void Stats_thd::print(FILE * outf, bool prog) {
           ",mixed_lock_silo_cnt=%ld"
           ",mixed_lock_silo_local_cnt=%ld",
           mixed_lock_calvin_cnt, mixed_lock_calvin_local_cnt, mixed_lock_silo_cnt,
-          mixed_lock_silo_local_cnt);
+  //SNAPPER
+  fprintf(outf,
+          ",snapper_false_deadlock=%ld"
+          ",snapper_calvin_cnt=%ld"
+          ",snapper_lock_cnt=%ld",
+          snapper_false_deadlock, snapper_calvin_cnt, snapper_lock_cnt);
   // Logging
   double log_write_avg_time = 0;
   if (log_write_cnt > 0) log_write_avg_time = log_write_time / log_write_cnt;
@@ -1652,6 +1662,11 @@ void Stats_thd::combine(Stats_thd * stats) {
   mixed_lock_calvin_local_cnt+=stats->mixed_lock_calvin_local_cnt;
   mixed_lock_silo_cnt+=stats->mixed_lock_silo_cnt;
   mixed_lock_silo_local_cnt+=stats->mixed_lock_silo_local_cnt;
+
+  //SNAPPER
+  snapper_calvin_cnt+=stats->snapper_calvin_cnt;
+  snapper_false_deadlock+=stats->snapper_false_deadlock;
+  snapper_lock_cnt+=stats->snapper_lock_cnt;
 
   // Logging
   log_write_cnt+=stats->log_write_cnt;

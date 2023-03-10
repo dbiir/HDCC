@@ -49,6 +49,9 @@
 #include "ssi.h"
 #include "wsi.h"
 #include "manager.h"
+#if CC_ALG == SNAPPER
+#include "row_snapper.h"
+#endif
 
 void TxnStats::init() {
 	starttime=0;
@@ -374,6 +377,14 @@ void TxnManager::init(uint64_t thd_id, Workload * h_wl) {
 	num_locks = 0;
 	memset(write_set, 0, 100);
 #endif
+#if CC_ALG == SNAPPER
+	phase = CALVIN_RW_ANALYSIS;
+	calvin_locked_rows.init(MAX_ROW_PER_TXN);
+	wait_for_locks = set<row_t *>();
+	read_write_set = vector<pair<row_t *, access_t>>();
+	wait_for_locks_ready = true;
+	dependencies = set<int64_t>();
+#endif
 
 	registed_ = false;
 	txn_ready = true;
@@ -413,6 +424,17 @@ void TxnManager::reset() {
 	locking_done = false;
 	calvin_locked_rows.clear();
 #endif
+#if CC_ALG == SNAPPER
+	phase = CALVIN_RW_ANALYSIS;
+	locking_done = false;
+	calvin_locked_rows.clear();
+	isTimeout = false;
+	read_write_set.clear();
+	wait_for_locks.clear();
+	wait_for_locks_ready = true;
+	wait_row == NULL;
+	dependencies.clear();
+#endif
 
 	assert(txn);
 	assert(query);
@@ -424,7 +446,7 @@ void TxnManager::reset() {
 
 void TxnManager::release() {
 	uint64_t prof_starttime = get_sys_clock();
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	qry_pool.put(get_thd_id(),query, algo);
 #else
 	qry_pool.put(get_thd_id(),query);
@@ -455,18 +477,26 @@ void TxnManager::release() {
 	num_locks = 0;
 	memset(write_set, 0, 100);
 #endif
+#if CC_ALG == SNAPPER
+	calvin_locked_rows.release();
+	read_write_set.clear();
+	wait_for_locks.clear();
+	wait_for_locks_ready = true;
+	wait_row = NULL;
+	dependencies.clear();
+#endif
 	txn_ready = true;
 }
 
 void TxnManager::reset_query() {
 #if WORKLOAD == YCSB
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	((YCSBQuery*)query)->reset(algo);
 #else
 	((YCSBQuery*)query)->reset();
 #endif
 #elif WORKLOAD == TPCC
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	((TPCCQuery*)query)->reset(algo);
 #else
 	((TPCCQuery*)query)->reset();
@@ -622,7 +652,7 @@ RC TxnManager::start_commit() {
 				rc = WAIT_REM;
 			}
 		} else if (!query->readonly() || CC_ALG == OCC || CC_ALG == MAAT || CC_ALG == DLI_BASE ||
-				CC_ALG == DLI_OCC || CC_ALG == SILO || CC_ALG == BOCC || CC_ALG == SSI || CC_ALG == MIXED_LOCK) {
+				CC_ALG == DLI_OCC || CC_ALG == SILO || CC_ALG == BOCC || CC_ALG == SSI || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER) {
 			// send prepare messages
 			txn_stats.trans_validate_network_start_time = get_sys_clock();
 			send_prepare_messages();
@@ -708,7 +738,7 @@ int TxnManager::received_response(RC rc) {
 	if (txn->rc == RCOK) txn->rc = rc;
 #if CC_ALG == CALVIN
 	++rsp_cnt;
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	if (algo == CALVIN) {
 		++rsp_cnt;
 	} else if (rsp_cnt > 0) {
@@ -753,6 +783,19 @@ void TxnManager::commit_stats() {
 		txn_stats.commit_stats(get_thd_id(), get_txn_id(), get_batch_id(), timespan_long,
 													timespan_short);
 		return;
+#elif CC_ALG == SNAPPER
+		if (algo == CALVIN) {
+			// INC_STATS(get_thd_id(), txn_run_time, timespan_long);
+			// INC_STATS(get_thd_id(),multi_part_txn_run_time,timespan_long);
+			// INC_STATS(get_thd_id(),single_part_txn_run_time,timespan_long);
+			INC_STATS(get_thd_id(), snapper_calvin_cnt, 1);
+		} else {
+			INC_STATS(get_thd_id(), snapper_lock_cnt, 1);
+		}
+		INC_STATS(get_thd_id(),remote_txn_commit_cnt,1);
+		txn_stats.commit_stats(get_thd_id(), get_txn_id(), get_batch_id(), timespan_long,
+													timespan_short);
+		return;
 #else
 		INC_STATS(get_thd_id(),remote_txn_commit_cnt,1);
 		txn_stats.commit_stats(get_thd_id(), get_txn_id(), get_batch_id(), timespan_long,
@@ -773,6 +816,14 @@ void TxnManager::commit_stats() {
 		INC_STATS(get_thd_id(), mixed_lock_silo_local_cnt, 1);
 	}
 #endif
+#if CC_ALG == SNAPPRE
+	if (algo == CALVIN) {
+		INC_STATS(get_thd_id(), snapper_calvin_cnt, 1);
+	} else {
+		INC_STATS(get_thd_id(), snapper_lock_cnt, 1);
+
+	}
+#endif
 	INC_STATS(get_thd_id(), txn_run_time, timespan_long);
 	if(query->partitions_touched.size() > 1) {
 		INC_STATS(get_thd_id(),multi_part_txn_cnt,1);
@@ -789,7 +840,7 @@ void TxnManager::commit_stats() {
 	return;
 	#endif
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	if (algo == CALVIN)
 	{
 		return;
@@ -895,11 +946,18 @@ void TxnManager::cleanup_row(RC rc, uint64_t rid) {
 #if CC_ALG != CALVIN
 #if ISOLATION_LEVEL != READ_UNCOMMITTED
 	row_t * orig_r = txn->accesses[rid]->orig_row;
+#if CC_ALG == SNAPPER
+	if (algo == CALVIN) {
+	} else if (ROLL_BACK && type == XP) {
+			orig_r->return_row(rc,type, this, txn->accesses[rid]->orig_data);
+	} else {
+#else
 	if (ROLL_BACK && type == XP &&
 			(CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == HSTORE ||
 			 CC_ALG == HSTORE_SPEC)) {
 		orig_r->return_row(rc,type, this, txn->accesses[rid]->orig_data);
 	} else {
+#endif
 #if ISOLATION_LEVEL == READ_COMMITTED
 		if(type == WR) {
 			version = orig_r->return_row(rc, type, this, txn->accesses[rid]->data);
@@ -922,6 +980,17 @@ void TxnManager::cleanup_row(RC rc, uint64_t rid) {
 	if (type == WR) {
 		//printf("free 10 %ld\n",get_txn_id());
 				txn->accesses[rid]->orig_data->free_row();
+		DEBUG_M("TxnManager::cleanup row_t free\n");
+		row_pool.put(get_thd_id(),txn->accesses[rid]->orig_data);
+		if(rc == RCOK) {
+			INC_STATS(get_thd_id(),record_write_cnt,1);
+			++txn_stats.write_cnt;
+		}
+	}
+#endif
+#if ROLL_BACK && CC_ALG == SNAPPER
+	if (algo == WAIT_DIE && type == WR) {
+		txn->accesses[rid]->orig_data->free_row();
 		DEBUG_M("TxnManager::cleanup row_t free\n");
 		row_pool.put(get_thd_id(),txn->accesses[rid]->orig_data);
 		if(rc == RCOK) {
@@ -978,6 +1047,12 @@ void TxnManager::cleanup(RC rc) {
 	for (int rid = row_cnt - 1; rid >= 0; rid --) {
 		cleanup_row(rc,rid);
 	}
+#if CC_ALG == SNAPPER
+	if (wait_row) {
+		wait_row->manager->lock_release(this);
+		wait_row = NULL;
+	}
+#endif
 #if CC_ALG == DLI_BASE || CC_ALG == DLI_OCC || CC_ALG == DLI_MVCC_OCC || CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3 || \
 		CC_ALG == DLI_MVCC_BASE
 	dli_man.finish_trans(rc, this);
@@ -989,7 +1064,7 @@ void TxnManager::cleanup(RC rc) {
 		row->return_row(rc,RD,this,row);
 	}
 #endif
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	if (algo == CALVIN) {
 		// cleanup locked rows
 		for (uint64_t i = 0; i < calvin_locked_rows.size(); i++) {
@@ -1091,6 +1166,11 @@ RC TxnManager::get_row(row_t * row, access_t type, row_t *& row_rtn) {
 #if CC_ALG == FOCC
 	focc_man.active_storage(type, this, access);
 #endif
+#if CC_ALG == SNAPPER
+	if (rc == WAIT) {
+		wait_row = row;
+	}
+#endif
   uint64_t middle_time = get_sys_clock();
 	if (rc == Abort || rc == WAIT) {
 		row_rtn = NULL;
@@ -1112,7 +1192,31 @@ RC TxnManager::get_row(row_t * row, access_t type, row_t *& row_rtn) {
 #if CC_ALG == SILO
 	access->tid = last_tid;
 #endif
+#if ROLL_BACK && CC_ALG == SNAPPER
+	if (algo == WAIT_DIE) {
+		if (type == WR) {
+			uint64_t part_id = row->get_part_id();
+			DEBUG_M("TxnManager::get_row row_t alloc\n")
+			row_pool.get(get_thd_id(),access->orig_data);
+			access->orig_data->init(row->get_table(), part_id, 0);
+			access->orig_data->copy(row);
+			assert(access->orig_data->get_schema() == row->get_schema());
 
+			// ARIES-style physiological logging
+	#if LOGGING
+				// LogRecord * record =
+				// logger.createRecord(LRT_UPDATE,L_UPDATE,get_txn_id(),part_id,row->get_table()->get_table_id(),row->get_primary_key());
+				LogRecord *record = logger.createRecord(
+						get_txn_id(), L_UPDATE, row->get_table()->get_table_id(), row->get_primary_key());
+			if(g_repl_cnt > 0) {
+					msg_queue.enqueue(get_thd_id(), Message::create_message(record, LOG_MSG),
+														g_node_id + g_node_cnt + g_client_node_cnt);
+			}
+			logger.enqueueRecord(record);
+	#endif
+			}
+	}
+#endif
 #if ROLL_BACK && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || \
 									CC_ALG == HSTORE || CC_ALG == HSTORE_SPEC)
 	if (type == WR) {
@@ -1157,7 +1261,7 @@ RC TxnManager::get_row(row_t * row, access_t type, row_t *& row_rtn) {
 	INC_STATS(get_thd_id(), txn_manager_time, timespan);
 	row_rtn  = access->data;
 
-	if (CC_ALG == HSTORE || CC_ALG == HSTORE_SPEC || CC_ALG == CALVIN) assert(rc == RCOK);
+	if (CC_ALG == HSTORE || CC_ALG == HSTORE_SPEC || CC_ALG == CALVIN || (CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER && algo == CALVIN)) assert(rc == RCOK);
 	assert(rc == RCOK);
 	return rc;
 }
@@ -1166,6 +1270,9 @@ RC TxnManager::get_row_post_wait(row_t *& row_rtn) {
 	assert(CC_ALG != HSTORE && CC_ALG != HSTORE_SPEC);
 
 	uint64_t starttime = get_sys_clock();
+#if CC_ALG == SNAPPER
+	wait_row = NULL;
+#endif
 	row_t * row = this->last_row;
 	access_t type = this->last_type;
 	assert(row != NULL);
@@ -1177,6 +1284,17 @@ RC TxnManager::get_row_post_wait(row_t *& row_rtn) {
 
 	access->type = type;
 	access->orig_row = row;
+#if ROLL_BACK && CC_ALG == SNAPPER
+	if (algo = WAIT_DIE) {
+		if (type == WR) {
+			uint64_t part_id = row->get_part_id();
+			DEBUG_M("TxnManager::get_row_post_wait row_t alloc\n")
+			row_pool.get(get_thd_id(),access->orig_data);
+			access->orig_data->init(row->get_table(), part_id, 0);
+			access->orig_data->copy(row);
+		}
+	}
+#endif
 #if ROLL_BACK && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE)
 	if (type == WR) {
 		uint64_t part_id = row->get_part_id();
@@ -1239,7 +1357,8 @@ RC TxnManager::validate() {
 			CC_ALG != TICTOC && CC_ALG != BOCC && CC_ALG != FOCC && CC_ALG != WSI &&
 			CC_ALG != SSI && CC_ALG != DLI_BASE && CC_ALG != DLI_OCC &&
 			CC_ALG != DLI_MVCC_OCC && CC_ALG != DTA && CC_ALG != DLI_DTA &&
-			CC_ALG != DLI_DTA2 && CC_ALG != DLI_DTA3 && CC_ALG != DLI_MVCC && CC_ALG != SILO && CC_ALG != MIXED_LOCK) {
+			CC_ALG != DLI_DTA2 && CC_ALG != DLI_DTA3 && CC_ALG != DLI_MVCC && CC_ALG != SILO &&
+			CC_ALG != MIXED_LOCK && CC_ALG != SNAPPER) {
 		return RCOK;
 	}
 	RC rc = RCOK;
@@ -1250,6 +1369,8 @@ RC TxnManager::validate() {
 		commit_timestamp = get_txn_id();
 		DEBUG("Validate success: %ld, cts: %ld \n", get_txn_id(), commit_timestamp);
 	}
+#elif CC_ALG == SNAPPER
+	rc = validate_snapper();
 #else
 	if (CC_ALG == OCC && rc == RCOK) rc = occ_man.validate(this);
 	if(CC_ALG == BOCC && rc == RCOK) rc = bocc_man.validate(this);
@@ -1317,7 +1438,7 @@ RC TxnManager::validate() {
 }
 
 RC TxnManager::send_remote_reads() {
-	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
+	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
 #if !YCSB_ABORT_MODE && WORKLOAD == YCSB
 	return RCOK;
 #endif

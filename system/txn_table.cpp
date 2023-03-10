@@ -156,7 +156,7 @@ void TxnTable::restart_txn(uint64_t thd_id, uint64_t txn_id,uint64_t batch_id){
     if(is_matching_txn_node(t_node,txn_id,batch_id)) {
 #if CC_ALG == CALVIN
       work_queue.enqueue(thd_id,Message::create_message(t_node->txn_man,RTXN),false);
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
       if (t_node->txn_man->algo == CALVIN) {
         // work_queue.calvin_enqueue(thd_id, Message::create_message(t_node->txn_man, RTXN), false);
         Message* msg = Message::create_message(t_node->txn_man,RTXN);
@@ -164,7 +164,7 @@ void TxnTable::restart_txn(uint64_t thd_id, uint64_t txn_id,uint64_t batch_id){
         work_queue.enqueue(thd_id, msg,false);
       } else {
         // mixed_lock cc should not pass here with silo
-        assert(false);
+        assert(t_node->txn_man->algo != SILO);
         if(IS_LOCAL(txn_id))
           work_queue.enqueue(thd_id,Message::create_message(t_node->txn_man,RTXN_CONT),false);
         else

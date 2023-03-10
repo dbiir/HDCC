@@ -17,6 +17,21 @@ CCSelector::~CCSelector(){
     delete [] pstats;
     delete [] is_high_conflict;
 }
+#if CC_ALG == SNAPPER
+int CCSelector::get_best_cc(Message *msg){
+#if PRORATE_TRANSACTION
+    if(msg->rtype == CL_QRY){
+        double r = (double)(rand() % 10000) / 10000;
+        if (r < g_prorate_ratio) {
+            return WAIT_DIE;
+        }
+    } else {
+        return WAIT_DIE;
+    }
+#endif
+    return CALVIN;
+}
+#else
 int CCSelector::get_best_cc(Message *msg){
 // Prorate transactions to Silo as non-deterministic workload
 #if PRORATE_TRANSACTION

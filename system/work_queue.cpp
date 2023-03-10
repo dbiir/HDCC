@@ -109,7 +109,7 @@ Message * QWorkQueue::sequencer_dequeue(uint64_t thd_id) {
 }
 
 void QWorkQueue::sched_enqueue(uint64_t thd_id, Message * msg) {
-	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
+	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
 	assert(msg);
 	assert(ISSERVERN(msg->return_node_id));
 	uint64_t starttime = get_sys_clock();
@@ -135,7 +135,7 @@ void QWorkQueue::sched_enqueue(uint64_t thd_id, Message * msg) {
 Message * QWorkQueue::sched_dequeue(uint64_t thd_id) {
 	uint64_t starttime = get_sys_clock();
 
-	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK);
+	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
 	Message * msg = NULL;
 	work_queue_entry * entry = NULL;
 
@@ -163,8 +163,10 @@ Message * QWorkQueue::sched_dequeue(uint64_t thd_id) {
 				simulation->next_worker_epoch();
 			}
 			sched_ptr = (sched_ptr + 1) % g_node_cnt;
+#if CC_ALG != SNAPPER
 			msg->release();
 			msg = NULL;
+#endif
 
 		} else {
 			simulation->inc_epoch_txn_cnt();

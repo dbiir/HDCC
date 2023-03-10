@@ -89,7 +89,7 @@ public:
   void init();
   void release();
   void release_requests();
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   void reset(int algo);
 #else
   void reset();

@@ -206,7 +206,7 @@ Message * Message::create_message(RemReqType rtype) {
   msg->rtype = rtype;
   msg->txn_id = UINT64_MAX;
   msg->batch_id = UINT64_MAX;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   msg->algo = 0;
 #endif
   msg->return_node_id = g_node_id;
@@ -238,6 +238,10 @@ uint64_t Message::mget_size() {
   size += sizeof(uint64_t);
   size += sizeof(int);
 #endif
+#if CC_ALG == SNAPPER
+  size += sizeof(uint64_t);
+  size += sizeof(int);
+#endif
   // for stats, send message queue time
   size += sizeof(uint64_t);
 
@@ -254,6 +258,9 @@ void Message::mcopy_from_txn(TxnManager * txn) {
 #elif CC_ALG == MIXED_LOCK
   batch_id = txn->get_batch_id();
   original_return_node_id = txn->original_return_id;
+  algo = txn->algo;
+#elif CC_ALG == SNAPPER
+  batch_id = txn->get_batch_id();
   algo = txn->algo;
 #endif
 }
@@ -274,6 +281,9 @@ void Message::mcopy_from_buf(char * buf) {
 #elif CC_ALG == MIXED_LOCK
   COPY_VAL(batch_id,buf,ptr);
   COPY_VAL(original_return_node_id,buf,ptr);
+  COPY_VAL(algo,buf,ptr);
+#elif CC_ALG == SNAPPER
+  COPY_VAL(batch_id,buf,ptr);
   COPY_VAL(algo,buf,ptr);
 #endif
   COPY_VAL(mq_time,buf,ptr);
@@ -303,6 +313,9 @@ void Message::mcopy_to_buf(char * buf) {
 #elif CC_ALG == MIXED_LOCK
   COPY_BUF(buf,batch_id,ptr);
   COPY_BUF(buf,original_return_node_id,ptr);
+  COPY_BUF(buf,algo,ptr);
+#elif CC_ALG == SNAPPER
+  COPY_BUF(buf,batch_id,ptr);
   COPY_BUF(buf,algo,ptr);
 #endif
   COPY_BUF(buf,mq_time,ptr);
@@ -440,7 +453,7 @@ void Message::release_message(Message * msg) {
 
 uint64_t QueryMessage::get_size() {
   uint64_t size = Message::mget_size();
-#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA
+#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA || CC_ALG == SNAPPER
   size += sizeof(ts);
 #endif
 #if CC_ALG == OCC || CC_ALG == FOCC || CC_ALG == BOCC || CC_ALG == SSI || CC_ALG == WSI || \
@@ -453,7 +466,7 @@ uint64_t QueryMessage::get_size() {
 
 void QueryMessage::copy_from_txn(TxnManager * txn) {
   Message::mcopy_from_txn(txn);
-#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA
+#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA || CC_ALG == SNAPPER
   ts = txn->get_timestamp();
   assert(ts != 0);
 #endif
@@ -462,14 +475,14 @@ void QueryMessage::copy_from_txn(TxnManager * txn) {
     CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3 || CC_ALG == DLI_MVCC
   start_ts = txn->get_start_timestamp();
 #endif
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   algo = txn->algo;
 #endif
 }
 
 void QueryMessage::copy_to_txn(TxnManager * txn) {
   Message::mcopy_to_txn(txn);
-#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA
+#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA || CC_ALG == SNAPPER
   assert(ts != 0);
   txn->set_timestamp(ts);
 #endif
@@ -478,7 +491,7 @@ void QueryMessage::copy_to_txn(TxnManager * txn) {
     CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3 || CC_ALG == DLI_MVCC
   txn->set_start_timestamp(start_ts);
 #endif
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   txn->algo = algo;
 #endif
 }
@@ -487,7 +500,7 @@ void QueryMessage::copy_from_buf(char * buf) {
   Message::mcopy_from_buf(buf);
   uint64_t ptr __attribute__ ((unused));
   ptr = Message::mget_size();
-#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA
+#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA || CC_ALG == SNAPPER
  COPY_VAL(ts,buf,ptr);
   assert(ts != 0);
 #endif
@@ -502,7 +515,7 @@ void QueryMessage::copy_to_buf(char * buf) {
   Message::mcopy_to_buf(buf);
   uint64_t ptr __attribute__ ((unused));
   ptr = Message::mget_size();
-#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA
+#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA || CC_ALG == SNAPPER
  COPY_BUF(buf,ts,ptr);
   assert(ts != 0);
 #endif

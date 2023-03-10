@@ -42,7 +42,7 @@ public:
   uint64_t txn_id;
   uint64_t batch_id;
   uint64_t return_node_id;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   uint64_t original_return_node_id;
   int algo;
   uint64_t orig_txn_id, orig_batch_id;
@@ -404,7 +404,7 @@ public:
   void release() {}
 
   uint64_t pid;
-#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == DTA || CC_ALG == WOOKONG
+#if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == DTA || CC_ALG == WOOKONG || CC_ALG == SNAPPER
   uint64_t ts;
 #endif
 #if CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == DTA || CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3

@@ -535,7 +535,7 @@ void MessageThread::run() {
   sbuf->cnt += 1;
   sbuf->ptr += msg->get_size();
   // Free message here, no longer needed unless CALVIN sequencer
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   if(msg->algo != CALVIN) {
 #else
   if(CC_ALG != CALVIN) {

@@ -18,7 +18,7 @@
 #include "abort_queue.h"
 #include "message.h"
 #include "work_queue.h"
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 #include "cc_selector.h"
 #include "global.h"
 #include "txn.h"
@@ -26,7 +26,7 @@
 
 void AbortQueue::init() { pthread_mutex_init(&mtx, NULL); }
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, TxnManager* txn, uint64_t abort_cnt) {
 #else
 uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t abort_cnt) {
@@ -42,7 +42,7 @@ uint64_t AbortQueue::enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t abort_cn
   abort_entry * entry = (abort_entry*)mem_allocator.alloc(sizeof(abort_entry));
   entry->penalty_end = penalty;
   entry->txn_id = txn_id;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   Message * msg = Message::create_message(RTXN);
   msg->copy_from_txn(txn);
   msg->orig_txn_id = txn_id;
@@ -81,7 +81,7 @@ void AbortQueue::process(uint64_t thd_id) {
             simulation->seconds_from_start(starttime));
       INC_STATS(thd_id,abort_queue_penalty_extra,starttime - entry->penalty_end);
       INC_STATS(thd_id,abort_queue_dequeue_cnt,1);
-#if CC_ALG ==MIXED_LOCK
+#if CC_ALG ==MIXED_LOCK || CC_ALG == SNAPPER
       work_queue.sequencer_enqueue(thd_id, entry->msg);
 #else
       Message * msg = Message::create_message(RTXN);

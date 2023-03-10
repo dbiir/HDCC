@@ -47,7 +47,7 @@ typedef struct qlite_ll_entry {
 	uint64_t batch_send_time;
 	qlite_ll_entry * next;
 	qlite_ll_entry * prev;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	uint64_t start_txn_id;
 #endif
 } qlite_ll;
@@ -79,7 +79,7 @@ class Sequencer {
 	qlite_ll * wl_tail;		// list of txns in batch being executed
 	volatile uint32_t next_txn_id;
 	Workload * _wl;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	uint64_t last_epoch_max_id;
 #endif
 };

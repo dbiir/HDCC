@@ -339,6 +339,11 @@ public:
   uint64_t mixed_lock_calvin_cnt;
   uint64_t mixed_lock_calvin_local_cnt;
 
+  //SNAPPER
+  uint64_t snapper_false_deadlock;
+  uint64_t snapper_calvin_cnt;
+  uint64_t snapper_lock_cnt;
+
   // Logging
   uint64_t log_write_cnt;
   double log_write_time;

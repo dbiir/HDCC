@@ -61,7 +61,11 @@ public:
 	void reset();
 	void partial_reset();
   RC acquire_locks();
-	RC run_txn();
+#if CC_ALG == SNAPPER
+  void get_read_write_set();
+  RC acquire_lock(row_t *row, access_t acctype);
+#endif
+  RC run_txn();
   RC run_txn_post_wait();
 	RC run_calvin_txn();
   void copy_remote_requests(YCSBQueryMessage * msg);

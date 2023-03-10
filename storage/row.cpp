@@ -39,6 +39,7 @@
 #include "row_null.h"
 #include "row_silo.h"
 #include "row_mixed_lock.h"
+#include "row_snapper.h"
 #include "mem_alloc.h"
 #include "manager.h"
 
@@ -103,6 +104,8 @@ void row_t::init_manager(row_t * row) {
 	//	we find that using new instead of mem_allocator can get rid of this bottle neck to some extent
 	// manager = new Row_mixed_lock();
 	manager = (Row_mixed_lock *) mem_allocator.align_alloc(sizeof(Row_mixed_lock));
+#elif CC_ALG == SNAPPER
+	manager = (Row_snapper *) mem_allocator.align_alloc(sizeof(Row_snapper));
 #elif CC_ALG == SILO
     manager = (Row_silo *) mem_allocator.align_alloc(sizeof(Row_silo));
 #endif
@@ -214,12 +217,22 @@ void row_t::free_row() {
 
 RC row_t::get_lock(access_t type, TxnManager * txn) {
 	RC rc = RCOK;
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK
+#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	lock_t lt = (type == RD || type == SCAN)? LOCK_SH : LOCK_EX;
 	rc = this->manager->lock_get(lt, txn);
 #endif
 	return rc;
 }
+
+#if CC_ALG == SNAPPER
+void row_t::enter_critical_section() {
+	this->manager->enter_critical_section();
+}
+
+void row_t::leave_critical_section() {
+	this->manager->leave_critical_section();
+}
+#endif
 
 RC row_t::get_row(access_t type, TxnManager *txn, Access *access) {
   RC rc = RCOK;
@@ -503,6 +516,25 @@ RC row_t::get_row(access_t type, TxnManager *txn, Access *access) {
 		access->data = this;
 		goto end;
 	}
+#elif CC_ALG == SNAPPER
+	if (txn->algo == WAIT_DIE) {
+		uint64_t init_time = get_sys_clock();
+		//uint64_t thd_id = txn->get_thd_id();
+		lock_t lt = (type == RD || type == SCAN) ? LOCK_SH : LOCK_EX; // ! this wrong !!
+		INC_STATS(txn->get_thd_id(), trans_cur_row_init_time, get_sys_clock() - init_time);
+
+		rc = this->manager->lock_get(lt, txn);
+
+		uint64_t copy_time = get_sys_clock();
+		if (rc == RCOK) {
+			access->data = this;
+		}
+		INC_STATS(txn->get_thd_id(), trans_cur_row_copy_time, get_sys_clock() - copy_time);
+		goto end;
+	} else {
+		access->data = this;
+		goto end;
+	}
 #elif CC_ALG == HSTORE || CC_ALG == HSTORE_SPEC || CC_ALG == CALVIN
 #if CC_ALG == HSTORE_SPEC
 	if(txn_table.spec_mode) {
@@ -558,13 +590,16 @@ RC row_t::get_row_post_wait(access_t type, TxnManager * txn, row_t *& row) {
 	RC rc = RCOK;
   uint64_t init_time = get_sys_clock();
 	assert(CC_ALG == WAIT_DIE || CC_ALG == MVCC || CC_ALG == WOOKONG || CC_ALG == TIMESTAMP || CC_ALG == TICTOC || CC_ALG == SSI || CC_ALG == WSI || CC_ALG == DTA || CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3 ||
-				 CC_ALG == TIMESTAMP);
+				 CC_ALG == TIMESTAMP || CC_ALG == SNAPPER);
 #if CC_ALG == WAIT_DIE
 	assert(txn->lock_ready);
 	rc = RCOK;
 	//ts_t endtime = get_sys_clock();
 	row = this;
-
+#elif CC_ALG == SNAPPER
+	assert(txn->algo == WAIT_DIE && txn->lock_ready);
+	rc = RCOK;
+	row = this;
 #elif CC_ALG == MVCC || CC_ALG == TIMESTAMP || CC_ALG == WOOKONG || CC_ALG == TICTOC || CC_ALG == SSI || CC_ALG == WSI || CC_ALG == DTA || CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3
 	assert(txn->ts_ready);
 	//INC_STATS(thd_id, time_wait, t2 - t1);
@@ -618,7 +653,7 @@ uint64_t row_t::return_row(RC rc, access_t type, TxnManager *txn, row_t *row) {
 	}
 #endif
 */
-#if CC_ALG == WAIT_DIE || CC_ALG == NO_WAIT || CC_ALG == CALVIN
+#if CC_ALG == WAIT_DIE || CC_ALG == NO_WAIT || CC_ALG == CALVIN || CC_ALG == SNAPPER
 	assert (row == NULL || row == this || type == XP);
 	if (CC_ALG != CALVIN && ROLL_BACK &&
 			type == XP) {  // recover from previous writes. should not happen w/ Calvin

@@ -60,6 +60,7 @@ class Row_si;
 class Row_null;
 class Row_silo;
 class Row_mixed_lock;
+class Row_snapper;
 
 class row_t {
 public:
@@ -148,6 +149,11 @@ public:
   	Row_silo * manager;
 	#elif CC_ALG == MIXED_LOCK
   		Row_mixed_lock * manager;
+	#elif CC_ALG == SNAPPER
+		Row_snapper * manager;
+
+		void enter_critical_section();
+		void leave_critical_section();
 	#endif
 	char * data;
 	int tuple_size;
