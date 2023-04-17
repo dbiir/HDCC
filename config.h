@@ -201,11 +201,20 @@
 // [MIXED_LOCK]
 #define CALVIN_THREAD_CNT 1
 #define SHARD_SIZE 100000
-#define LOWER_BOUND 1000
-#define UPPER_BOUND 2000
+// tpcc payment
+// #define LOWER_BOUND 700
+// #define UPPER_BOUND 11000
+
+// tpcc neworder mpr = 0.05
+// #define LOWER_BOUND 300
+// #define UPPER_BOUND 180000
+// ycsb mpr = 0.2
+#define LOWER_BOUND 19000
+#define UPPER_BOUND 150000
 #define CONFLICT_SEND_INTERVAL 1 * BILLION // 1s
 #define PRORATE_TRANSACTION false
-#define PRORATE_RATIO 0.2
+#define PRORATE_RATIO 0
+#define EXTREME_MODE false
 // [TICTOC]
 #define MAX_NUM_WAITS 4
 #define PRE_ABORT true
@@ -472,6 +481,7 @@ enum PPSTxnType {
 #define WARMUP_TIMER 1 * 60 * BILLION // ~1 minutes
 #define STATS_EVERY_INTERVAL true
 #define ONE_SECOND 1 * BILLION
+#define SNAPPER_TXN_TIMEOUT 0.1 * MILLION
 
 #define SEED 0
 #define SHMEM_ENV false
