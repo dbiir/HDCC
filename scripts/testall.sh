@@ -1,3 +1,4 @@
+#!/bin/bash
 #python run_experiments.py -e -c vcloud tpcc_stress1
 #sleep 10
 

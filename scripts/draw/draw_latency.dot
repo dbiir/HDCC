@@ -67,4 +67,4 @@ digraph graphname {
         commit->commit_network
       finish->abort
         abort->abort_network
-};
+}

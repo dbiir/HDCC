@@ -1,4 +1,4 @@
-
+#!/bin/bash
 #python run_experiments.py -e -c vcloud ycsb_skew
 #sleep 30
 #python run_experiments.py -e -c vcloud ycsb_writes

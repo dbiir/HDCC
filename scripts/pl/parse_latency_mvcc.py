@@ -25,4 +25,4 @@ a = sum(summary['trans_total_run_time'])
 b = sum(summary['trans_mvcc_clear_history'])
 
 # print b,b/a
-print "%.2f %.2f" % (b,b*100/a)
+print ("%.2f %.2f" % (b,b*100/a))

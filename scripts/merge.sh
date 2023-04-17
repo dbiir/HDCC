@@ -1,3 +1,4 @@
+#!/bin/bash
 set -x
 ROOT_PATH1=/root/deneva-code
 ROOT_PATH2=/root/mogg-deneva

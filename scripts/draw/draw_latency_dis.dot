@@ -26,4 +26,4 @@ digraph graphname {
   total->network_B
   total->local_work
   total->local_process
-};
+}

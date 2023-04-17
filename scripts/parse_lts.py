@@ -28,5 +28,5 @@ d = sum(summary['lat_short_cc_time'])/len(summary['lat_short_cc_time']) if 'lat_
 e = sum(summary['lat_short_cc_block_time'])/len(summary['lat_short_cc_block_time']) if 'lat_short_cc_block_time' in summary else 0
 f = sum(summary['lat_short_process_time'])/len(summary['lat_short_process_time']) if 'lat_short_process_time' in summary else 0
 
-print a, b, c, d, e, f
+print (a, b, c, d, e, f)
 

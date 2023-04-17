@@ -1,3 +1,4 @@
+#!/bin/bash
 LatencyName="trans_total_run_time \
           trans_process_time trans_process_time_percent \
           trans_2pc_time trans_2pc_time_percent \

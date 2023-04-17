@@ -1,3 +1,4 @@
+#!/bin/bash
 set -x
 rp=$(pwd)
 cd ~/src

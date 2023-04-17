@@ -71,4 +71,4 @@ digraph graphname {
     twopc->finish
       finish->commit
       finish->abort
-};
+}

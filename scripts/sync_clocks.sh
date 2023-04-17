@@ -1,3 +1,4 @@
+#!/bin/bash
 HOSTS="$1"
 if [ -z "$HOSTS" ]
 then

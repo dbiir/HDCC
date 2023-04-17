@@ -10,7 +10,7 @@ def get_summary(sfile):
                 results = re.split(',', line.rstrip('\n')[10:])
                 for r in results:
                     (name, val) = re.split('=', r)
-                    val = float(val)
+                    val = float(val) + 1e-20
                     if name not in summary.keys():
                         summary[name] = [val]
                     else:
@@ -31,4 +31,4 @@ f = sum(summary['trans_msg_local_wait'])
 g = sum(summary['trans_msg_remote_wait'])
 h = sum(summary['trans_network_wait'])
 
-print "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f" % (a, b,b*100/a,c,c*100/a,d,d*100/a,e,e*100/a,f,f*100/a,g,g*100/a,h,h/a,a-b-c-d-e-f-g,(a-b-c-d-e-f-g)*100/a)
+print ("%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f" % (a, b,b*100/a,c,c*100/a,d,d*100/a,e,e*100/a,f,f*100/a,g,g*100/a,h,h/a,a-b-c-d-e-f-g,(a-b-c-d-e-f-g)*100/a))

@@ -29,4 +29,4 @@ e = sum(summary['dli_final_validate'])
 
 # print b,b/a,c,c/a,d,d/a,e,e/a
 
-print "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f" % (b,b*100/a,c,c*100/a,d,d*100/a,e,e*100/a)
+print ("%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f" % (b,b*100/a,c,c*100/a,d,d*100/a,e,e*100/a))

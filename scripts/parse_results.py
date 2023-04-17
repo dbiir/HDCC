@@ -30,4 +30,4 @@ if 'remote_txn_commit_cnt' in summary and 'remote_txn_abort_cnt' in summary and 
     c = (summary['remote_txn_commit_cnt'][0] + summary['remote_txn_abort_cnt'][0]) / (
             summary['total_txn_commit_cnt'][0] + summary['total_txn_abort_cnt'][0])
 
-print a, b, c
+print (a, b, c)

@@ -32,4 +32,4 @@ h = sum(summary['trans_abort_time'])
 i = sum(summary['lat_l_loc_cc_block_time'])
 j = sum(summary['lat_l_rem_cc_block_time'])
 k = sum(summary['trans_init_time'])
-print b-i-j,i+j,d,g,h
+print (b-i-j,i+j,d,g,h)

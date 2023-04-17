@@ -1,3 +1,4 @@
+#!/bin/bash
 while true
 do
     if [[ -z "$(ps -aux | grep perf | grep report)" ]]
