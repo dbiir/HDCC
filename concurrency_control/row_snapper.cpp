@@ -132,15 +132,16 @@ RC Row_snapper::lock_get(lock_t type, TxnManager *txn) {
                     LIST_INSERT_AFTER(en, entry, waiters_tail);
                     while(en != NULL) {
                         if (en->txn->algo == CALVIN) {
-                            entry->txn->dependencies.insert(en->txn->get_batch_id());
+                            entry->txn->dependOn.insert(en->txn->get_batch_id());
                         }
                         en = en->prev;
                     }
                 } else {
                     LIST_PUT_HEAD(waiters_head, waiters_tail, entry);
-                    entry->txn->dependencies.insert(last_batch_id);
+                    entry->txn->dependOn.insert(last_batch_id);
                 }
                 waiter_cnt ++;
+                txn->last_lock_ts = entry->start_ts;
                 DEBUG("lk_wait (%ld,%ld): owners %d, own type %d, req type %d, key %ld %lx\n",
                     txn->get_txn_id(), txn->get_batch_id(), owner_cnt, lock_type, type,
                     _row->get_primary_key(), (uint64_t)_row);
@@ -190,38 +191,6 @@ RC Row_snapper::lock_get(lock_t type, TxnManager *txn) {
             }
         }
         rc = RCOK;
-    }
-
-
-    LockEntry * en;
-    en = owners;
-    while (en != NULL) {
-        if (en->txn->algo == WAIT_DIE && !en->txn->lock_ready) {
-            int64_t wait_time = get_sys_clock() - en->start_ts;
-            if (wait_time > 1 * MILLION) {
-                if (ATOM_CAS(en->txn->lock_ready, false, true)) {
-                    en->txn->isTimeout = true;
-                    txn_table.restart_txn(txn->get_thd_id(), en->txn->get_txn_id(),
-                                        en->txn->get_batch_id());
-                }
-            }
-        }
-        en = en->next;
-    }
-
-    en = waiters_head;
-    while (en != NULL) {
-        if (en->txn->algo == WAIT_DIE && !en->txn->lock_ready) {
-            int64_t wait_time = get_sys_clock() - en->start_ts;
-            if (wait_time > 1 * MILLION) {
-                if (ATOM_CAS(en->txn->lock_ready, false, true)) {
-                    en->txn->isTimeout = true;
-                    txn_table.restart_txn(txn->get_thd_id(), en->txn->get_txn_id(),
-                                        en->txn->get_batch_id());
-                }
-            }
-        }
-        en = en->next;
     }
 
     uint64_t curr_time = get_sys_clock();
@@ -377,19 +346,14 @@ final:
     return RCOK;
 }
 
-bool Row_snapper::validate(TxnManager * txn) {
-    set<uint64_t> depended;
+void Row_snapper::findDependBy(TxnManager * txn) {
     LockEntry * en = waiters_head;
     while (en != NULL) {
         if (en->txn->algo == CALVIN) {
-            depended.insert(en->txn->get_batch_id());
+            txn->dependBy.insert(en->txn->get_batch_id());
         }
         en = en->next;
     }
-    set<uint64_t> result;
-    set_intersection(txn->dependencies.begin(), txn->dependencies.end(), depended.begin(), depended.end(), inserter(result, result.begin()));
-    bool is_empty = result.empty();
-    return is_empty;
 }
 
 #endif

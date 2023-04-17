@@ -55,6 +55,7 @@ public:
 #endif
 #if CC_ALG == SILO || CC_ALG == MIXED_LOCK
 	ts_t 		tid;
+	bool isIntermediateState;
 	// ts_t 		epoch;
 #endif
 	void cleanup();
@@ -224,8 +225,10 @@ public:
 	int algo;
 	bool isTimeout;
 	row_t * wait_row;
-	set<int64_t> dependencies;
+	set<uint64_t> dependOn;
+	set<uint64_t> dependBy;
 	bool wait_for_locks_ready;
+	uint64_t last_lock_ts;
 #endif
 
 #if CC_ALG == SILO

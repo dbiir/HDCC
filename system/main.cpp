@@ -17,6 +17,7 @@
 #include "abort_thread.h"
 #include "calvin_thread.h"
 #include "conflict_thread.h"
+#include "snapper_check_thread.h"
 #include "client_query.h"
 #include "dli.h"
 #include "dta.h"
@@ -66,9 +67,14 @@ InputThread * input_thds;
 OutputThread * output_thds;
 AbortThread * abort_thds;
 LogThread * log_thds;
-#if CC_ALG == CALVIN || CC_ALG == SNAPPER
+#if CC_ALG == CALVIN
 CalvinLockThread * calvin_lock_thds;
 CalvinSequencerThread * calvin_seq_thds;
+#endif
+#if CC_ALG == SNAPPER
+CalvinLockThread * calvin_lock_thds;
+CalvinSequencerThread * calvin_seq_thds;
+SnapperCheckThread * snapper_check_thd;
 #endif
 #if CC_ALG == MIXED_LOCK
 CalvinLockThread * calvin_lock_thds;
@@ -294,8 +300,11 @@ int main(int argc, char *argv[]) {
 #if LOGGING
 		all_thd_cnt += 1; // logger thread
 #endif
-#if CC_ALG == CALVIN || CC_ALG == SNAPPER
+#if CC_ALG == CALVIN
 		all_thd_cnt += 2; // sequencer + scheduler thread
+#endif
+#if CC_ALG == SNAPPER
+	all_thd_cnt += 3;	// sequencer + scheduler thread + sanpper_check_thread
 #endif
 #if CC_ALG == MIXED_LOCK
 		all_thd_cnt += 3; //sequencer + scheduler thread + conflict thread
@@ -321,9 +330,14 @@ int main(int argc, char *argv[]) {
 	stats_per_interval_thds = new StatsPerIntervalThread[1];
 #endif
 
-#if CC_ALG == CALVIN || CC_ALG == SNAPPER
+#if CC_ALG == CALVIN
 	calvin_lock_thds = new CalvinLockThread[1];
 	calvin_seq_thds = new CalvinSequencerThread[1];
+#endif
+#if CC_ALG == SNAPPER
+	calvin_lock_thds = new CalvinLockThread[1];
+	calvin_seq_thds = new CalvinSequencerThread[1];
+	snapper_check_thd = new SnapperCheckThread;
 #endif
 #if CC_ALG == MIXED_LOCK
 	calvin_lock_thds = new CalvinLockThread[1];
@@ -416,7 +430,7 @@ int main(int argc, char *argv[]) {
 	pthread_create(&p_thds[id++], NULL, run_thread, (void *)&abort_thds[0]);
 #endif
 
-#if CC_ALG == CALVIN || CC_ALG == SNAPPER
+#if CC_ALG == CALVIN
 #if SET_AFFINITY
 	CPU_ZERO(&cpus);
 	CPU_SET(cpu_cnt, &cpus);
@@ -435,6 +449,34 @@ int main(int argc, char *argv[]) {
 
 	calvin_seq_thds[0].init(id,g_node_id,m_wl);
 	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&calvin_seq_thds[0]);
+#endif
+#if CC_ALG == SNAPPER
+#if SET_AFFINITY
+	CPU_ZERO(&cpus);
+	CPU_SET(cpu_cnt, &cpus);
+	pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+	cpu_cnt++;
+#endif
+
+	calvin_lock_thds[0].init(id,g_node_id,m_wl);
+	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&calvin_lock_thds[0]);
+#if SET_AFFINITY
+	CPU_ZERO(&cpus);
+	CPU_SET(cpu_cnt, &cpus);
+	pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+	cpu_cnt++;
+#endif
+
+	calvin_seq_thds[0].init(id,g_node_id,m_wl);
+	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&calvin_seq_thds[0]);
+#if SET_AFFINITY
+	CPU_ZERO(&cpus);
+	CPU_SET(cpu_cnt, &cpus);
+	pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+	cpu_cnt++;
+#endif
+	snapper_check_thd->init(id, g_node_id, m_wl);
+	pthread_create(&p_thds[id++], &attr, run_thread, (void *)snapper_check_thd);
 #endif
 
 #if CC_ALG == MIXED_LOCK

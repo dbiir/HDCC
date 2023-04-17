@@ -622,6 +622,21 @@ RC WorkerThread::process_rack_prep(Message * msg) {
   uint64_t max_tid = ((AckMessage*)msg)->max_tid;
   txn_man->find_tid_silo(max_tid);
 #endif
+#if CC_ALG == SNAPPER
+  // printf("txn id: %ld\ndependon\n", txn_man->get_txn_id());
+  auto suppleDependOn = ((AckMessage*)msg)->dependOn;
+  for(auto it = suppleDependOn.begin(); it != suppleDependOn.end(); ++it){
+    txn_man->dependOn.insert(*it);
+    // printf("%ld\t", *it);
+  }
+  // printf("\n dependby\n");
+  auto suppleDependBy = ((AckMessage*)msg)->dependBy;
+  for(auto it = suppleDependBy.begin(); it != suppleDependBy.end(); ++it){
+    txn_man->dependBy.insert(*it);
+    // printf("%ld\t", *it);
+  }
+  // printf("\n");
+#endif
 
   if (responses_left > 0) return WAIT;
   INC_STATS(get_thd_id(), trans_validation_network, get_sys_clock() - txn_man->txn_stats.trans_validate_network_start_time);
@@ -772,7 +787,7 @@ RC WorkerThread::process_rqry_cont(Message * msg) {
   RC rc = RCOK;
 
   if (txn_man->isTimeout) {
-    RC rc = txn_man->abort();
+    RC rc = txn_man->start_abort();
     if(rc != WAIT) {
       msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,RQRY_RSP),txn_man->return_id);
     }
@@ -812,7 +827,7 @@ RC WorkerThread::process_rtxn_cont(Message * msg) {
 
   if (txn_man->isTimeout) {
     // printf("txn: %ld abort for timeout\n", txn_man->get_txn_id());
-    RC rc = txn_man->abort();
+    RC rc = txn_man->start_abort();
     check_if_done(rc);
   } else {
     txn_man->run_txn_post_wait();
@@ -892,7 +907,11 @@ RC WorkerThread::process_rtxn(Message * msg) {
     bool ready = txn_man->unset_ready();
     INC_STATS(get_thd_id(),worker_activate_txn_time,get_sys_clock() - ready_starttime);
     assert(ready);
-    if (CC_ALG == WAIT_DIE || (CC_ALG == SNAPPER && txn_man->algo == WAIT_DIE)) {
+  #if CC_ALG == SNAPPER
+    if(txn_man->algo == WAIT_DIE){
+  #else
+    if (CC_ALG == WAIT_DIE) {
+  #endif
       #if WORKLOAD == DA //mvcc use timestamp
         if (da_stamp_tab.count(txn_man->get_txn_id())==0)
         {

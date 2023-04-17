@@ -343,6 +343,9 @@ public:
   uint64_t snapper_false_deadlock;
   uint64_t snapper_calvin_cnt;
   uint64_t snapper_lock_cnt;
+  uint64_t snapper_txn_timeout_cnt;
+  uint64_t snapper_row_timeout_cnt;
+  uint64_t snapper_validate_abort_cnt;
 
   // Logging
   uint64_t log_write_cnt;

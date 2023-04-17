@@ -9,7 +9,7 @@ class Row_snapper {
 public:
     RC lock_get(lock_t type, TxnManager * txn);
     RC lock_release(TxnManager * txn);
-    bool validate(TxnManager * txn);
+    void findDependBy(TxnManager * txn);
     void init(row_t* row);
     void enter_critical_section();
     void leave_critical_section();

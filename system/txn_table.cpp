@@ -73,6 +73,33 @@ void TxnTable::update_min_ts(uint64_t thd_id, uint64_t txn_id,uint64_t batch_id,
   ATOM_CAS(pool[pool_id]->modify,true,false);
 }
 
+#if EXTREME_MODE
+TxnManager* TxnTable::find_txn_manager(uint64_t thd_id, uint64_t txn_id){
+  uint64_t pool_id = txn_id % pool_size;
+
+  uint64_t mtx_starttime = get_sys_clock();
+  // set modify bit for this pool: txn_id % pool_size
+  while (!ATOM_CAS(pool[pool_id]->modify, false, true)) {
+  };
+  INC_STATS(thd_id,mtx[7],get_sys_clock()-mtx_starttime);
+
+  txn_node_t t_node = pool[pool_id]->head;
+  TxnManager * txn_man = nullptr;
+
+  uint64_t prof_starttime = get_sys_clock();
+  while (t_node) {
+    if(is_matching_txn_node(t_node,txn_id,0)) {
+      txn_man = t_node->txn_man;
+      break;
+    }
+    t_node = t_node->next;
+  }
+  ATOM_CAS(pool[pool_id]->modify,true,false);
+  INC_STATS(thd_id,mtx[20],get_sys_clock()-prof_starttime);
+  return txn_man;
+}
+#endif
+
 TxnManager * TxnTable::get_transaction_manager(uint64_t thd_id, uint64_t txn_id,uint64_t batch_id){
   DEBUG("TxnTable::get_txn_manager %ld / %ld\n",txn_id,pool_size);
   uint64_t starttime = get_sys_clock();
@@ -144,6 +171,34 @@ TxnManager * TxnTable::get_transaction_manager(uint64_t thd_id, uint64_t txn_id,
   return txn_man;
 }
 
+#if CC_ALG == SNAPPER
+void TxnTable::snapper_check(){
+  for(int i = 0; i < pool_size; ++i){
+    while(!ATOM_CAS(pool[i]->modify, false, true)){};
+    auto cur = pool[i]->head;
+    while(cur){
+      auto txn_man = cur->txn_man;
+      if (txn_man->algo == WAIT_DIE && !txn_man->lock_ready && txn_man->last_lock_ts > 0) {
+        auto duration = get_sys_clock() - txn_man->last_lock_ts;
+        if(duration > SNAPPER_TXN_TIMEOUT && ATOM_CAS(txn_man->lock_ready, false, true)){
+          auto txn_id = txn_man->get_txn_id();
+          auto thd_id = txn_man->get_thd_id();
+          txn_man->isTimeout = true;
+          if(IS_LOCAL(txn_id)){
+            work_queue.enqueue(thd_id,Message::create_message(txn_man,RTXN_CONT),false);
+          }else{
+            work_queue.enqueue(thd_id,Message::create_message(txn_man,RQRY_CONT),false);
+          }
+          INC_STATS(thd_id, snapper_txn_timeout_cnt, 1);
+          }
+      }
+      cur = cur->next;
+    }
+    ATOM_CAS(pool[i]->modify, true, false);
+  }
+  
+}
+#endif
 void TxnTable::restart_txn(uint64_t thd_id, uint64_t txn_id,uint64_t batch_id){
   uint64_t pool_id = txn_id % pool_size;
   // set modify bit for this pool: txn_id % pool_size

@@ -184,7 +184,7 @@ public:
   void copy_to_txn(TxnManager * txn);
   uint64_t get_size();
   void init() {}
-  void release() {}
+  void release();
 
   RC rc;
 #if CC_ALG == MAAT || CC_ALG == WOOKONG || CC_ALG == DTA || CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3
@@ -196,6 +196,10 @@ public:
 #endif
 #if CC_ALG == MIXED_LOCK
   bool isCommit;
+#endif
+#if CC_ALG == SNAPPER
+  set<uint64_t> dependOn;
+  set<uint64_t> dependBy;
 #endif
 
   // For Calvin PPS: part keys from secondary lookup for sequencer response

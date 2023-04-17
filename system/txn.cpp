@@ -383,7 +383,8 @@ void TxnManager::init(uint64_t thd_id, Workload * h_wl) {
 	wait_for_locks = set<row_t *>();
 	read_write_set = vector<pair<row_t *, access_t>>();
 	wait_for_locks_ready = true;
-	dependencies = set<int64_t>();
+	last_lock_ts = 0;
+	algo = -1;
 #endif
 
 	registed_ = false;
@@ -395,7 +396,11 @@ void TxnManager::init(uint64_t thd_id, Workload * h_wl) {
 
 // reset after abort
 void TxnManager::reset() {
+#if CC_ALG == SNAPPER
+	lock_ready = (algo == WAIT_DIE)? true: false;
+#else
 	lock_ready = false;
+#endif
 	lock_ready_cnt = 0;
 	locking_done = true;
 #if CC_ALG == DLI_MVCC || CC_ALG == DLI_MVCC_OCC
@@ -433,7 +438,9 @@ void TxnManager::reset() {
 	wait_for_locks.clear();
 	wait_for_locks_ready = true;
 	wait_row == NULL;
-	dependencies.clear();
+	dependOn.clear();
+	dependBy.clear();
+	last_lock_ts = 0;
 #endif
 
 	assert(txn);
@@ -483,7 +490,9 @@ void TxnManager::release() {
 	wait_for_locks.clear();
 	wait_for_locks_ready = true;
 	wait_row = NULL;
-	dependencies.clear();
+	dependOn.clear();
+	dependBy.clear();
+	last_lock_ts = 0;
 #endif
 	txn_ready = true;
 }
@@ -816,7 +825,7 @@ void TxnManager::commit_stats() {
 		INC_STATS(get_thd_id(), mixed_lock_silo_local_cnt, 1);
 	}
 #endif
-#if CC_ALG == SNAPPRE
+#if CC_ALG == SNAPPER
 	if (algo == CALVIN) {
 		INC_STATS(get_thd_id(), snapper_calvin_cnt, 1);
 	} else {
@@ -1261,7 +1270,7 @@ RC TxnManager::get_row(row_t * row, access_t type, row_t *& row_rtn) {
 	INC_STATS(get_thd_id(), txn_manager_time, timespan);
 	row_rtn  = access->data;
 
-	if (CC_ALG == HSTORE || CC_ALG == HSTORE_SPEC || CC_ALG == CALVIN || (CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER && algo == CALVIN)) assert(rc == RCOK);
+	if (CC_ALG == HSTORE || CC_ALG == HSTORE_SPEC || CC_ALG == CALVIN) assert(rc == RCOK);
 	assert(rc == RCOK);
 	return rc;
 }

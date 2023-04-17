@@ -371,7 +371,9 @@ void Stats_thd::clear() {
   snapper_false_deadlock = 0;
   snapper_calvin_cnt = 0;
   snapper_lock_cnt = 0;
-
+  snapper_txn_timeout_cnt = 0;
+  snapper_row_timeout_cnt = 0;
+  snapper_validate_abort_cnt = 0;
   // Logging
   log_write_cnt=0;
   log_write_time=0;
@@ -1122,8 +1124,12 @@ void Stats_thd::print(FILE * outf, bool prog) {
   fprintf(outf,
           ",snapper_false_deadlock=%ld"
           ",snapper_calvin_cnt=%ld"
-          ",snapper_lock_cnt=%ld",
-          snapper_false_deadlock, snapper_calvin_cnt, snapper_lock_cnt);
+          ",snapper_lock_cnt=%ld"
+          ",snapper_txn_timeout_cnt=%ld"
+          ",snapper_row_timeout_cnt=%ld"
+          ",snapper_validate_abort_cnt=%ld",
+          snapper_false_deadlock, snapper_calvin_cnt, snapper_lock_cnt,snapper_txn_timeout_cnt,
+          snapper_row_timeout_cnt, snapper_validate_abort_cnt);
   // Logging
   double log_write_avg_time = 0;
   if (log_write_cnt > 0) log_write_avg_time = log_write_time / log_write_cnt;
@@ -1667,6 +1673,9 @@ void Stats_thd::combine(Stats_thd * stats) {
   snapper_calvin_cnt+=stats->snapper_calvin_cnt;
   snapper_false_deadlock+=stats->snapper_false_deadlock;
   snapper_lock_cnt+=stats->snapper_lock_cnt;
+  snapper_txn_timeout_cnt += stats->snapper_txn_timeout_cnt;
+  snapper_row_timeout_cnt += stats->snapper_row_timeout_cnt;
+  snapper_validate_abort_cnt += stats->snapper_validate_abort_cnt;
 
   // Logging
   log_write_cnt+=stats->log_write_cnt;

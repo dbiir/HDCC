@@ -1228,7 +1228,20 @@ uint64_t AckMessage::get_size() {
   size += sizeof(size_t);
   size += sizeof(uint64_t) * part_keys.size();
 #endif
+#if CC_ALG == SNAPPER
+  size += sizeof(size_t);
+  size += sizeof(uint64_t) * dependOn.size();
+  size += sizeof(size_t);
+  size += sizeof(uint64_t) * dependBy.size();
+#endif
   return size;
+}
+
+void AckMessage::release(){
+#if CC_ALG == SNAPPER
+  dependOn.clear();
+  dependBy.clear();
+#endif
 }
 
 void AckMessage::copy_from_txn(TxnManager * txn) {
@@ -1253,6 +1266,11 @@ void AckMessage::copy_from_txn(TxnManager * txn) {
 #if CC_ALG == MIXED_LOCK
   isCommit = !txn->aborted;
 #endif
+#if CC_ALG == SNAPPER
+  // what to do with txn's dependon and dependby? potential memory leak
+  dependOn = txn->dependOn;
+  dependBy = txn->dependBy;
+#endif
 
 #if WORKLOAD == PPS && CC_ALG == CALVIN
   PPSQuery* pps_query = (PPSQuery*)(txn->query);
@@ -1263,6 +1281,11 @@ void AckMessage::copy_from_txn(TxnManager * txn) {
 void AckMessage::copy_to_txn(TxnManager * txn) {
   Message::mcopy_to_txn(txn);
   //query->rc = rc;
+#if CC_ALG == SNAPPER
+// what to do with message's dependon and dependby? potential memory leak
+  txn->dependOn = dependOn;
+  txn->dependBy = dependBy;
+#endif
 #if WORKLOAD == PPS && CC_ALG == CALVIN
 
   PPSQuery* pps_query = (PPSQuery*)(txn->query);
@@ -1283,6 +1306,21 @@ void AckMessage::copy_from_buf(char * buf) {
 #endif
 #if CC_ALG == MIXED_LOCK
   COPY_VAL(isCommit,buf,ptr);
+#endif
+#if CC_ALG == SNAPPER
+  size_t size;
+  COPY_VAL(size,buf,ptr);
+  for(uint64_t i = 0; i < size; ++i){
+    uint64_t item;
+    COPY_VAL(item,buf,ptr);
+    dependOn.insert(item);
+  }
+  COPY_VAL(size,buf,ptr);
+  for(uint64_t i = 0; i < size; ++i){
+    uint64_t item;
+    COPY_VAL(item,buf,ptr);
+    dependBy.insert(item);
+  }
 #endif
 #if WORKLOAD == PPS && CC_ALG == CALVIN
 
@@ -1311,6 +1349,20 @@ void AckMessage::copy_to_buf(char * buf) {
 #endif
 #if CC_ALG == MIXED_LOCK
   COPY_BUF(buf,isCommit,ptr);
+#endif
+#if CC_ALG == SNAPPER
+  size_t size = dependOn.size();
+  COPY_BUF(buf,size,ptr);
+  for(auto it = dependOn.begin(); it != dependOn.end(); ++it) {
+    uint64_t item = *it;
+    COPY_BUF(buf,item,ptr);
+  }
+  size = dependBy.size();
+  COPY_BUF(buf,size,ptr);
+  for(auto it = dependBy.begin(); it != dependBy.end(); ++it) {
+    uint64_t item = *it;
+    COPY_BUF(buf,item,ptr);
+  }
 #endif
 #if WORKLOAD == PPS && CC_ALG == CALVIN
 
