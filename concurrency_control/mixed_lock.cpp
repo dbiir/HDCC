@@ -15,6 +15,7 @@
 #include "ycsb_query.h"
 #include "tpcc_query.h"
 #include "cc_selector.h"
+#include <unordered_set>
 
 #if CC_ALG == MIXED_LOCK
 // txn->algo == silo
@@ -103,6 +104,10 @@ RC TxnManager::validate_silo() {
 
   COMPILER_BARRIER
 
+#if EXTREME_MODE
+  unordered_set<uint64_t> waitFor;
+  bool benefited = false;
+#endif
   // validate rows in the read set
   // for repeatable_read, no need to validate the read set.
   // 检查读集的wts信息是否发生过变化/读集中数据是否被其他事务加锁->读写冲突
@@ -110,8 +115,11 @@ RC TxnManager::validate_silo() {
   //读验证时检测到calvin的写锁，回滚；版本变化，回滚；
   for (uint64_t i = 0; i < txn->row_cnt - wr_cnt; i++) {
     Access* access = txn->accesses[read_set[i]];
-    bool success =
-        access->orig_row->manager->validate(access->tid, false);  //当前行上有写锁/版本变化
+#if EXTREME_MODE
+    bool success = access->orig_row->manager->validate(access, false, waitFor, benefited);
+#else
+    bool success = access->orig_row->manager->validate(access, false);  //当前行上有写锁/版本变化
+#endif
     if (!success) {
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
         row_t* row = txn->accesses[i]->orig_row;
@@ -132,7 +140,11 @@ RC TxnManager::validate_silo() {
   // 写验证
   for (uint64_t i = 0; i < wr_cnt; i++) {
     Access* access = txn->accesses[write_set[i]];
-    bool success = access->orig_row->manager->validate(access->tid, true);  //时间戳版本正确即可
+#if EXTREME_MODE
+    bool success = access->orig_row->manager->validate(access, true, waitFor, benefited);
+#else
+    bool success = access->orig_row->manager->validate(access, true);  //时间戳版本正确即可
+#endif
     if (!success) {
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
         row_t* row = txn->accesses[i]->orig_row;
@@ -148,6 +160,29 @@ RC TxnManager::validate_silo() {
       return rc;
     }
   }
+
+#if EXTREME_MODE
+  // check dependent txns
+  uint64_t starttime = get_sys_clock();
+  while(!waitFor.empty()){
+    for(auto it = waitFor.begin(); it != waitFor.end(); ){
+      auto ptxn = txn_table.find_txn_manager(get_thd_id(), *it);
+      if(!ptxn){  //this txn is finished
+        it = waitFor.erase(it);
+      }else if(ptxn->aborted){  //this txn is aborted already
+        rc = Abort;
+        goto extreme_mode_stats;
+      }else{  //this txn is working in process
+        ++it;
+      }
+    }
+  }
+extreme_mode_stats:
+  INC_STATS(get_thd_id(), extreme_mode_wait_time, get_sys_clock() - starttime);
+  if(benefited){
+    INC_STATS(get_thd_id(), saved_txn_cnt, 1);
+  }
+#endif
   return rc;
 }
 

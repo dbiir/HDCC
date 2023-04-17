@@ -366,6 +366,8 @@ void Stats_thd::clear() {
   mixed_lock_silo_local_cnt=0;
   mixed_lock_calvin_cnt=0;
   mixed_lock_calvin_local_cnt=0;
+  extreme_mode_wait_time = 0;
+  saved_txn_cnt = 0;
 
   //SNAPPER
   snapper_false_deadlock = 0;
@@ -1115,11 +1117,14 @@ void Stats_thd::print(FILE * outf, bool prog) {
           dta_commit_avg, dta_range_avg);
   //MIXED_LOCK
   fprintf(outf,
+          ",extreme_mode_wait_time=%f"
+          ",saved_txn_cnt=%ld"
           ",mixed_lock_calvin_cnt=%ld"
           ",mixed_lock_calvin_local_cnt=%ld"
           ",mixed_lock_silo_cnt=%ld"
           ",mixed_lock_silo_local_cnt=%ld",
-          mixed_lock_calvin_cnt, mixed_lock_calvin_local_cnt, mixed_lock_silo_cnt,
+          extreme_mode_wait_time / BILLION, saved_txn_cnt, mixed_lock_calvin_cnt, 
+          mixed_lock_calvin_local_cnt, mixed_lock_silo_cnt, mixed_lock_silo_local_cnt);
   //SNAPPER
   fprintf(outf,
           ",snapper_false_deadlock=%ld"
@@ -1668,6 +1673,8 @@ void Stats_thd::combine(Stats_thd * stats) {
   mixed_lock_calvin_local_cnt+=stats->mixed_lock_calvin_local_cnt;
   mixed_lock_silo_cnt+=stats->mixed_lock_silo_cnt;
   mixed_lock_silo_local_cnt+=stats->mixed_lock_silo_local_cnt;
+  extreme_mode_wait_time += stats->extreme_mode_wait_time;
+  saved_txn_cnt += stats->saved_txn_cnt;
 
   //SNAPPER
   snapper_calvin_cnt+=stats->snapper_calvin_cnt;

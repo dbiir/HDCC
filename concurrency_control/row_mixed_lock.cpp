@@ -20,6 +20,7 @@ void Row_mixed_lock::init(row_t * row) {
     own_starttime = 0;
 
     _tid = 0;
+    isIntermediateState = false;
 }
 
 // lock_get
@@ -42,6 +43,27 @@ bool Row_mixed_lock::conflict_lock(lock_t l1, lock_t l2) {
   else
     return false;
 }
+#if EXTREME_MODE
+bool Row_mixed_lock::conflict_lock_extreme_mode(lock_t l1, lock_t l2, TxnManager *txn) {
+  if(txn->algo == CALVIN){
+    return conflict_lock(l1, l2);
+  }
+  // Calvin read，OCC write || Calvin's write is not finished，OCC write --> conflict
+  // l2 == LOCK_EX is assured at this point since OCC invoke lock get only for its write set
+  // if l1 corresponds to an OCC txn, 
+  bool writeNotStart = false;
+  if(owners){
+    if(owners->txn->algo == SILO){
+      return true;
+    }
+    writeNotStart = _tid != owners->txn->get_txn_id();
+  }
+  if (l1 == LOCK_SH || (l1 == LOCK_EX && (isIntermediateState || writeNotStart)))
+    return true;
+  else
+    return false;
+}
+#endif
 
 LockEntry *Row_mixed_lock::get_entry() {
   LockEntry *entry = (LockEntry *)mem_allocator.alloc(sizeof(LockEntry));
@@ -64,7 +86,11 @@ RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int
   INC_STATS(txn->get_thd_id(), trans_access_lock_wait_time, get_sys_clock() - lock_get_start_time);
 
   // 冲突判断
+#if EXTREME_MODE
+  bool conflict = conflict_lock_extreme_mode(lock_type, type, txn);
+#else
   bool conflict = conflict_lock(lock_type, type);
+#endif
   if (txn->algo == CALVIN && !conflict) {  
     if (waiters_head) conflict = true;   
   }
@@ -229,20 +255,73 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
 }
 
 // silo的验证
-bool Row_mixed_lock::validate(ts_t tid, bool in_write_set) {
+#if EXTREME_MODE
+bool Row_mixed_lock::validate(Access *access, bool in_write_set, unordered_set<uint64_t> &waitFor, bool &benefited) {
+  ts_t tid_at_read = access->tid;
+  bool readIntermediateState = access->isIntermediateState;
+
+  // write validation
+  if (in_write_set){
+    if(tid_at_read != _tid){
+      return false;
+    }
+    pthread_mutex_lock(_latch);
+    // as implemented in lock_get, owners must be this occ txn itself, 
+    // but there maybe exists another Calvin txn holding an EX_lock which it depends on, add it to waitFor set
+    if(owners->next){
+      waitFor.insert(owners->next->txn->get_txn_id());
+      benefited = true;
+    }
+    pthread_mutex_unlock(_latch);
+    return true;
+  }
+
+  //read validation
+  if(tid_at_read != _tid || readIntermediateState){ //fail to pass validation
+    return false;
+  }
+  if(lock_type != LOCK_EX){
+    return true;
+  }
+  pthread_mutex_lock(_latch);
+  // if(lock_type != LOCK_EX){
+  //   pthread_mutex_unlock(_latch);
+  //   return true;
+  // }
+  // if OCC utilize Calvin's time window between lock and real write operation, or final write and unlock
+  // additional check need to be done
+  benefited = true;
+  LockEntry *p = owners;
+  while(p){
+    if(p->txn->algo == CALVIN){
+      if(p->txn->get_txn_id() == _tid){ //calvin txn has written this row, occ must wait, otherwise it can eschew
+        waitFor.insert(p->txn->get_txn_id());
+      }
+      break;
+    }
+    p = p->next;
+  }
+  pthread_mutex_unlock(_latch);
+  return true;
+}
+#else
+bool Row_mixed_lock::validate(Access *access, bool in_write_set) {
+  ts_t tid_at_read = access->tid;
+  bool readIntermediateState = access->isIntermediateState;
   if (in_write_set)
       // 写验证
-        return tid == _tid;
+        return tid_at_read == _tid;
 
   //读验证
   pthread_mutex_lock(_latch);
-  if (owners != NULL && owners->type == LOCK_EX) {
+  if (lock_type == LOCK_EX) {
     pthread_mutex_unlock(_latch);
     return false;  // 已加写锁
   }
   pthread_mutex_unlock(_latch);
 
-  bool valid = (tid == _tid);  // 时间戳校对，是否数据被修改过导致版本变化
+  bool valid = (tid_at_read == _tid && !readIntermediateState);  // 时间戳校对，是否数据被修改过导致版本变化
   return valid;
 }
+#endif
 #endif

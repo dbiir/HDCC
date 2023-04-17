@@ -28,6 +28,9 @@
 #include "transport.h"
 #include "msg_queue.h"
 #include "message.h"
+#if CC_ALG == MIXED_LOCK
+#include "row_mixed_lock.h"
+#endif
 
 void TPCCTxnManager::init(uint64_t thd_id, Workload * h_wl) {
 	TxnManager::init(thd_id, h_wl);
@@ -661,9 +664,20 @@ inline RC TPCCTxnManager::run_payment_1(uint64_t w_id, uint64_t d_id, uint64_t d
 	uint64_t starttime = get_sys_clock();
 	double w_ytd;
 	r_wh_local->get_value(W_YTD, w_ytd);
+#if CC_ALG == MIXED_LOCK
+	if (algo == CALVIN) {
+		row->manager->isIntermediateState = true;
+	}
+#endif
 	if (g_wh_update) {
 		r_wh_local->set_value(W_YTD, w_ytd + h_amount);
 	}
+#if CC_ALG == MIXED_LOCK
+	if (algo == CALVIN) {
+		row->manager->_tid = txn->txn_id;
+		row->manager->isIntermediateState = false;
+	}
+#endif
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
 	return RCOK;
 }
@@ -698,7 +712,18 @@ inline RC TPCCTxnManager::run_payment_3(uint64_t w_id, uint64_t d_id, uint64_t d
 	+=====================================================*/
 	double d_ytd;
 	r_dist_local->get_value(D_YTD, d_ytd);
+#if CC_ALG == MIXED_LOCK
+	if (algo == CALVIN) {
+		row->manager->isIntermediateState = true;
+	}
+#endif
 	r_dist_local->set_value(D_YTD, d_ytd + h_amount);
+#if CC_ALG == MIXED_LOCK
+	if (algo == CALVIN) {
+		row->manager->_tid = txn->txn_id;
+		row->manager->isIntermediateState = false;
+	}
+#endif
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
 	return RCOK;
 }
@@ -826,6 +851,12 @@ inline RC TPCCTxnManager::run_payment_5(uint64_t w_id, uint64_t d_id, uint64_t c
 	r_hist->set_value(H_DATE, date);
 	r_hist->set_value(H_AMOUNT, h_amount);
 	insert_row(r_hist, _wl->t_history);
+#if CC_ALG == MIXED_LOCK
+	if (algo == CALVIN) {
+		row->manager->_tid = txn->txn_id;
+		row->manager->isIntermediateState = false;
+	}
+#endif
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
 	return RCOK;
 }
@@ -962,6 +993,12 @@ inline RC TPCCTxnManager::new_order_5(uint64_t w_id, uint64_t d_id, uint64_t c_i
 	r_no->set_value(NO_D_ID, d_id);
 	r_no->set_value(NO_W_ID, w_id);
 	insert_row(r_no, _wl->t_neworder);
+#if CC_ALG == MIXED_LOCK
+	if (algo == CALVIN) {
+		row->manager->_tid = txn->txn_id;
+		row->manager->isIntermediateState = false;
+	}
+#endif
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
 	return RCOK;
 }
@@ -1096,6 +1133,12 @@ inline RC TPCCTxnManager::new_order_9(uint64_t w_id, uint64_t d_id, bool remote,
 	r_ol->set_value(OL_AMOUNT, &ol_amount);
 #endif
 	insert_row(r_ol, _wl->t_orderline);
+#if CC_ALG == MIXED_LOCK
+	if (algo == CALVIN) {
+		row->manager->_tid = txn->txn_id;
+		row->manager->isIntermediateState = false;
+	}
+#endif
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
 	return RCOK;
 }

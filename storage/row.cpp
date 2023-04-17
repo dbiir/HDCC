@@ -506,6 +506,7 @@ RC row_t::get_row(access_t type, TxnManager *txn, Access *access) {
   		INC_STATS(txn->get_thd_id(), trans_cur_row_init_time, get_sys_clock() - init_time);
 
 		access->tid = manager->_tid;
+		access->isIntermediateState = manager->isIntermediateState;
 		txn->cur_row->copy(this);
 
   		uint64_t copy_time = get_sys_clock();
