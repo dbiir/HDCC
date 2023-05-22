@@ -152,6 +152,7 @@ int CCSelector::get_best_cc(Message *msg){
     return SILO;
 #endif
 }
+#endif
 
 #if WORKLOAD == YCSB
 void CCSelector::update_conflict_stats(row_t * row){
