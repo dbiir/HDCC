@@ -1294,7 +1294,7 @@ RC TxnManager::get_row_post_wait(row_t *& row_rtn) {
 	access->type = type;
 	access->orig_row = row;
 #if ROLL_BACK && CC_ALG == SNAPPER
-	if (algo = WAIT_DIE) {
+	if (algo == WAIT_DIE) {
 		if (type == WR) {
 			uint64_t part_id = row->get_part_id();
 			DEBUG_M("TxnManager::get_row_post_wait row_t alloc\n")

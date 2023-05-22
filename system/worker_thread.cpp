@@ -787,7 +787,7 @@ RC WorkerThread::process_rqry_cont(Message * msg) {
   RC rc = RCOK;
 
   if (txn_man->isTimeout) {
-    RC rc = txn_man->start_abort();
+    RC rc = txn_man->abort();
     if(rc != WAIT) {
       msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,RQRY_RSP),txn_man->return_id);
     }

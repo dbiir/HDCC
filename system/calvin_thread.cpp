@@ -143,6 +143,9 @@ RC CalvinLockThread::run() {
 
 			while (!txn_man->unset_ready()) {
 			}
+		#if CC_ALG == SNAPPER
+			txn_man->txn->timestamp = UINT64_MAX;
+		#endif
 			assert(ISSERVERN(msg->get_return_id()));
 			txn_man->txn_stats.starttime = get_sys_clock();
 

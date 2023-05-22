@@ -70,6 +70,14 @@ RC Row_snapper::lock_get(lock_t type, TxnManager *txn) {
         if (waiters_head) conflict = true;
     }
     if (txn->algo == WAIT_DIE && !conflict) {
+        // if calvin txn exists in waiter list, then conflict is true
+        for(auto en = waiters_head; en; en = en->next){
+            if(en->txn->algo == CALVIN){
+                conflict = true;
+                break;
+            }
+        }
+        // if waiter list is all waitdie txn, check timestamp
         if (waiters_head && txn->get_timestamp() < waiters_head->txn->get_timestamp()) {
             conflict = true;
         }
