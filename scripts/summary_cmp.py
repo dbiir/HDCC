@@ -1,10 +1,11 @@
+#!/bin/python
 import ast
 import os
 
 filepath = []
 # replace below two paths with yours
-filepath.append('/home/sigmod21-deneva/results/20230413-114536/0_MIXED_LOCK_CT-4_EXTREME_MODE-false_TIF-10000_MPR-0.1_N-2_NUM_WH-2_PP-0_PRORATE_RATIO-0_T-16_TPCC_20230413-114536.out')
-filepath.append('/home/sigmod21-deneva/results/20230413-114536/0_CALVIN_CT-4_EXTREME_MODE-false_TIF-10000_MPR-0.1_N-2_NUM_WH-2_PP-0_PRORATE_RATIO-0_T-16_TPCC_20230413-114536.out')
+filepath.append('/home/sigmod21-deneva/results/20230508-183014/0_SILO_CT-4_EXTREME_MODE-true_TIF-10000_MPR-0.1_N-2_NUM_WH-256_PP-0_PRORATE_RATIO-0_T-16_TPCC_20230508-183014.out')
+filepath.append('/home/sigmod21-deneva/results/20230508-154158/0_SILO_CT-4_EXTREME_MODE-true_TIF-10000_MPR-0.1_N-2_NUM_WH-256_PP-0_PRORATE_RATIO-0_T-16_TPCC_20230508-154158.out')
 summary = []
 dict = []
 minimal = []
