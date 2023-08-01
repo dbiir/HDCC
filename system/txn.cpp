@@ -376,6 +376,8 @@ void TxnManager::init(uint64_t thd_id, Workload * h_wl) {
 
 	num_locks = 0;
 	memset(write_set, 0, 100);
+	max_calvin_tid = 0;
+	max_calvin_bid = 0;
 #endif
 #if CC_ALG == SNAPPER
 	phase = CALVIN_RW_ANALYSIS;
@@ -437,7 +439,7 @@ void TxnManager::reset() {
 	read_write_set.clear();
 	wait_for_locks.clear();
 	wait_for_locks_ready = true;
-	wait_row == NULL;
+	wait_row = NULL;
 	dependOn.clear();
 	dependBy.clear();
 	last_lock_ts = 0;
@@ -483,6 +485,8 @@ void TxnManager::release() {
 	calvin_locked_rows.release();
 	num_locks = 0;
 	memset(write_set, 0, 100);
+	max_calvin_tid = 0;
+	max_calvin_bid = 0;
 #endif
 #if CC_ALG == SNAPPER
 	calvin_locked_rows.release();
@@ -665,6 +669,9 @@ RC TxnManager::start_commit() {
 			// send prepare messages
 			txn_stats.trans_validate_network_start_time = get_sys_clock();
 			send_prepare_messages();
+#if CC_ALG == MIXED_LOCK
+			txn->rc = validate();				
+#endif
 			rc = WAIT_REM;
 		} else {
 			if(CC_ALG == WOOKONG && IS_LOCAL(get_txn_id()) && rc == RCOK) {
@@ -725,6 +732,18 @@ void TxnManager::send_prepare_messages() {
 		continue;
 	}
 		msg_queue.enqueue(get_thd_id(), Message::create_message(this, RPREPARE),
+											GET_NODE_ID(query->partitions_touched[i]));
+	}
+}
+
+void TxnManager::send_validation_messages() {
+	rsp_cnt = query->partitions_touched.size() - 1;
+	DEBUG("%ld Send PREPARE messages to %d\n",get_txn_id(),rsp_cnt);
+	for(uint64_t i = 0; i < query->partitions_touched.size(); i++) {
+		if(GET_NODE_ID(query->partitions_touched[i]) == g_node_id) {
+			continue;
+		}
+		msg_queue.enqueue(get_thd_id(), Message::create_message(this, VALID),
 											GET_NODE_ID(query->partitions_touched[i]));
 	}
 }
@@ -1358,6 +1377,19 @@ itemid_t *TxnManager::index_read(INDEX *index, idx_key_t key, int part_id, int c
 	return item;
 }
 
+RC TxnManager::validate_c() {
+	RC rc = RCOK;
+#if CC_ALG == MIXED_LOCK
+	rc = validate_cont();
+    if(rc == RCOK) {
+		  commit_timestamp = get_txn_id();
+		  DEBUG("Validate success: %ld, cts: %ld \n", get_txn_id(), commit_timestamp);
+    }
+#endif
+	return rc;
+}
+
+
 RC TxnManager::validate() {
 #if MODE != NORMAL_MODE
 	return RCOK;
@@ -1373,11 +1405,20 @@ RC TxnManager::validate() {
 	RC rc = RCOK;
 	uint64_t starttime = get_sys_clock();
 #if CC_ALG == MIXED_LOCK
-	rc = validate_silo();
-	if(IS_LOCAL(get_txn_id()) && rc == RCOK) {
-		commit_timestamp = get_txn_id();
-		DEBUG("Validate success: %ld, cts: %ld \n", get_txn_id(), commit_timestamp);
+	if (is_multi_part()) {
+		rc = validate_lock();
+	} else {
+		rc = validate_once();
+		if(rc == RCOK) {
+			commit_timestamp = get_txn_id();
+			DEBUG("Validate success: %ld, cts: %ld \n", get_txn_id(), commit_timestamp);
+		}
 	}
+	
+	// if(IS_LOCAL(get_txn_id()) && rc == RCOK) {
+	// 	commit_timestamp = get_txn_id();
+	// 	DEBUG("Validate success: %ld, cts: %ld \n", get_txn_id(), commit_timestamp);
+	// }
 #elif CC_ALG == SNAPPER
 	rc = validate_snapper();
 #else

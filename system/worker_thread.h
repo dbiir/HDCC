@@ -48,6 +48,8 @@ public:
     RC process_rtxn(Message * msg);
     RC process_calvin_rtxn(Message * msg);
     RC process_rtxn_cont(Message * msg);
+    RC process_req_valid(Message * msg);
+    RC process_valid(Message * msg);
     RC process_log_msg(Message * msg);
     RC process_log_msg_rsp(Message * msg);
     RC process_log_flushed(Message * msg);

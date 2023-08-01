@@ -217,6 +217,8 @@ public:
 	int             write_set[100];
     int*            read_set;
 	RC              finish(RC rc);
+	uint64_t		max_calvin_tid;
+	uint64_t		max_calvin_bid;
 #endif
 
 #if CC_ALG == SNAPPER
@@ -245,6 +247,7 @@ public:
 	bool aborted;
 	uint64_t return_id;
 	RC        validate();
+	RC        validate_c();
 	void            cleanup(RC rc);
 	void            cleanup_row(RC rc,uint64_t rid);
 	void release_last_row_lock();
@@ -306,6 +309,7 @@ public:
 	//void send_rfin_messages(RC rc) {assert(false);}
 	void send_finish_messages();
 	void send_prepare_messages();
+	void send_validation_messages();
 
 	TxnStats txn_stats;
 
@@ -358,7 +362,9 @@ protected:
 
 #if CC_ALG == MIXED_LOCK
 	bool 			_pre_abort=false;
-	RC				validate_silo();
+	RC				validate_once();
+	RC				validate_lock();
+	RC				validate_cont();
 #endif
 #if CC_ALG == SNAPPER
 	RC				validate_snapper();

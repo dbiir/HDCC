@@ -507,6 +507,16 @@ RC row_t::get_row(access_t type, TxnManager *txn, Access *access) {
 
 		access->tid = manager->_tid;
 		access->isIntermediateState = manager->isIntermediateState;
+		if (manager->max_calvin_write_bid > txn->max_calvin_bid || 
+		(manager->max_calvin_write_bid == txn->max_calvin_bid &&
+		manager->max_calvin_write_tid % g_node_cnt > txn->max_calvin_tid % g_node_cnt) || 
+		(manager->max_calvin_write_bid == txn->max_calvin_bid &&
+		manager->max_calvin_write_tid % g_node_cnt == txn->max_calvin_tid % g_node_cnt &&
+		manager->max_calvin_write_tid > txn->max_calvin_tid))
+	   	{
+			txn->max_calvin_tid = manager->max_calvin_write_tid;
+			txn->max_calvin_bid = manager->max_calvin_write_bid;
+		}
 		txn->cur_row->copy(this);
 
   		uint64_t copy_time = get_sys_clock();
@@ -515,6 +525,8 @@ RC row_t::get_row(access_t type, TxnManager *txn, Access *access) {
 		goto end;
 	} else {
 		access->data = this;
+		this->manager->max_calvin_read_tid = txn->get_txn_id();
+		this->manager->max_calvin_read_bid = txn->get_batch_id();
 		goto end;
 	}
 #elif CC_ALG == SNAPPER

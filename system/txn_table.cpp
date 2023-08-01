@@ -173,7 +173,7 @@ TxnManager * TxnTable::get_transaction_manager(uint64_t thd_id, uint64_t txn_id,
 
 #if CC_ALG == SNAPPER
 void TxnTable::snapper_check(){
-  for(int i = 0; i < pool_size; ++i){
+  for(uint64_t i = 0; i < pool_size; ++i){
     while(!ATOM_CAS(pool[i]->modify, false, true)){};
     auto cur = pool[i]->head;
     while(cur){

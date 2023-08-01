@@ -346,7 +346,7 @@ void TPCCTxnManager::get_read_write_set() {
 
 RC TPCCTxnManager::acquire_lock(row_t * row, access_t acctype) {
   RC rc = WAIT;
-  uint64_t starttime = get_sys_clock();
+//   uint64_t starttime = get_sys_clock();
   RC rc2 = get_lock(row,acctype);
   if (rc2 == RCOK) {
     if (wait_for_locks.empty()) {

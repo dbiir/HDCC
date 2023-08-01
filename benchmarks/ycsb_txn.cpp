@@ -113,7 +113,7 @@ void YCSBTxnManager::get_read_write_set() {
 
 RC YCSBTxnManager::acquire_lock(row_t * row, access_t acctype) {
   RC rc = WAIT;
-  uint64_t starttime = get_sys_clock();
+  // uint64_t starttime = get_sys_clock();
   RC rc2 = get_lock(row,acctype);
   if (rc2 == RCOK) {
     if (wait_for_locks.empty()) {
@@ -291,6 +291,8 @@ RC YCSBTxnManager::run_ycsb_1(access_t acctype, row_t * row_local) {
 #if CC_ALG == MIXED_LOCK
     if (algo == CALVIN) {
       row_local->manager->_tid = txn->txn_id;
+      row_local->manager->max_calvin_write_tid = txn->txn_id;
+      row_local->manager->max_calvin_write_bid = txn->batch_id;
     }
 #endif
 #if YCSB_ABORT_MODE

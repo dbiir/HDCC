@@ -192,6 +192,12 @@ void WorkerThread::process(Message * msg) {
 			case RTXN_CONT:
         rc = process_rtxn_cont(msg);
 				break;
+      case REQ_VALID:
+        rc = process_req_valid(msg);
+        break;
+      case VALID:
+        rc = process_valid(msg);
+        break;
       case CL_QRY:
       case CL_QRY_O:
 			case RTXN:
@@ -561,6 +567,61 @@ RC WorkerThread::process_rfin(Message * msg) {
   return RCOK;
 }
 
+RC WorkerThread::process_req_valid(Message * msg) {
+  RC rc = RCOK;
+
+  ValidationMessage* message = (ValidationMessage*) msg;
+  int responses_left = txn_man->received_response(message->rc);
+#if CC_ALG == MIXED_LOCK
+  if (message->max_calvin_bid > txn_man->max_calvin_bid ||
+  (message->max_calvin_bid == txn_man->max_calvin_bid &&
+  message->max_calvin_tid % g_node_cnt > txn_man->max_calvin_tid % g_node_cnt) ||
+  (message->max_calvin_bid == txn_man->max_calvin_bid &&
+  message->max_calvin_tid % g_node_cnt == txn_man->max_calvin_tid % g_node_cnt &&
+  message->max_calvin_tid > txn_man->max_calvin_tid)) {
+    txn_man->max_calvin_tid = message->max_calvin_tid;
+    txn_man->max_calvin_bid = message->max_calvin_bid;
+  }
+  #endif
+  assert(responses_left >=0);
+
+  if (responses_left > 0) return WAIT;
+  INC_STATS(get_thd_id(), trans_validation_network, get_sys_clock() - txn_man->txn_stats.trans_validate_network_start_time);
+
+  if(txn_man->get_rc() == RCOK) {
+    txn_man->send_validation_messages();
+#if CC_ALG == MIXED_LOCK
+    txn_man->txn->rc = txn_man->validate_c();
+    rc = WAIT_REM;
+#else
+    assert(false);
+#endif
+  } else {
+    rc = Abort;
+    uint64_t finish_start_time = get_sys_clock();
+    txn_man->txn_stats.finish_start_time = finish_start_time;
+    txn_man->send_finish_messages();
+    txn_man->abort();
+  }
+
+  return rc;
+}
+
+RC WorkerThread::process_valid(Message * msg) {
+  RC rc = RCOK;
+
+  // Validate transaction
+  rc = txn_man->validate_c();
+  txn_man->set_rc(rc);
+  msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,RACK_PREP),msg->return_node_id);
+  // Clean up as soon as abort is possible
+  if(rc == Abort) {
+    txn_man->abort();
+  }
+
+  return rc;
+}
+
 RC WorkerThread::process_rack_prep(Message * msg) {
   DEBUG("RPREP_ACK %ld\n",msg->get_txn_id());
 
@@ -644,6 +705,7 @@ RC WorkerThread::process_rack_prep(Message * msg) {
   if(txn_man->get_rc() == RCOK) {
     if (CC_ALG == TICTOC)
       rc = RCOK;
+    else if (CC_ALG == MIXED_LOCK) {}
     else
       rc = txn_man->validate();
   }
@@ -854,7 +916,11 @@ RC WorkerThread::process_rprepare(Message * msg) {
     // Validate transaction
     rc  = txn_man->validate();
     txn_man->set_rc(rc);
+#if CC_ALG == MIXED_LOCK
+    msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,REQ_VALID),msg->return_node_id);
+#else
     msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,RACK_PREP),msg->return_node_id);
+#endif
     // Clean up as soon as abort is possible
     if(rc == Abort) {
       txn_man->abort();

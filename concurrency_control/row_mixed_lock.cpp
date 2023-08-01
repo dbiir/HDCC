@@ -21,6 +21,10 @@ void Row_mixed_lock::init(row_t * row) {
 
     _tid = 0;
     isIntermediateState = false;
+    max_calvin_read_tid = 0;
+    max_calvin_read_bid = 0;
+    max_calvin_write_tid = 0;
+    max_calvin_write_bid = 0;
 }
 
 // lock_get
@@ -255,7 +259,7 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
 }
 
 // silo的验证
-#if EXTREME_MODE
+// #if EXTREME_MODE
 bool Row_mixed_lock::validate(Access *access, bool in_write_set, unordered_set<uint64_t> &waitFor, bool &benefited) {
   ts_t tid_at_read = access->tid;
   bool readIntermediateState = access->isIntermediateState;
@@ -304,7 +308,7 @@ bool Row_mixed_lock::validate(Access *access, bool in_write_set, unordered_set<u
   pthread_mutex_unlock(_latch);
   return true;
 }
-#else
+// #else
 bool Row_mixed_lock::validate(Access *access, bool in_write_set) {
   ts_t tid_at_read = access->tid;
   bool readIntermediateState = access->isIntermediateState;
@@ -323,5 +327,5 @@ bool Row_mixed_lock::validate(Access *access, bool in_write_set) {
   bool valid = (tid_at_read == _tid && !readIntermediateState);  // 时间戳校对，是否数据被修改过导致版本变化
   return valid;
 }
-#endif
+// #endif
 #endif

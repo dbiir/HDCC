@@ -224,6 +224,23 @@ public:
   uint64_t txn_id;
 };
 
+class ValidationMessage : public Message {
+public:
+  void copy_from_buf(char * buf);
+  void copy_to_buf(char * buf);
+  void copy_from_txn(TxnManager * txn);
+  void copy_to_txn(TxnManager * txn);
+  uint64_t get_size();
+  void init() {}
+  void release() {}
+
+  RC rc;
+#if CC_ALG == MIXED_LOCK
+  uint64_t max_calvin_tid;
+  uint64_t max_calvin_bid;
+#endif
+};
+
 class ForwardMessage : public Message {
 public:
   void copy_from_buf(char * buf);

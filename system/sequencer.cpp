@@ -44,6 +44,8 @@ void Sequencer::init(Workload * wl) {
 	fill_queue = new boost::lockfree::queue<Message*, boost::lockfree::capacity<65526> > [g_node_cnt];
 #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	last_epoch_max_id = 0;
+	blocked = false;
+	validationCount = 0;
 #endif
 }
 
@@ -214,8 +216,15 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 	if (en->txns_left == 0) {
 			DEBUG("FINISHED BATCH %ld\n",en->epoch);
 			LIST_REMOVE_HT(en,wl_head,wl_tail);
+#if CC_ALG == MIXED_LOCK
+			blocked = true;
+			while(validationCount > 0) {}
+#endif
 			mem_allocator.free(en->list,sizeof(qlite) * en->max_size);
 			mem_allocator.free(en,sizeof(qlite_ll));
+#if CC_ALG == MIXED_LOCK
+			blocked = false;
+#endif
 	}
 	INC_STATS(thd_id,seq_ack_time,get_sys_clock() - prof_stat);
 }
@@ -421,3 +430,36 @@ void Sequencer::send_next_batch(uint64_t thd_id) {
 #endif
 }
 
+#if CC_ALG == MIXED_LOCK
+bool Sequencer::checkDependency(uint64_t batch_id, uint64_t txn_id) {
+	qlite_ll * en = wl_head;
+	if (!en || en->epoch > batch_id) {
+		return true;
+	}
+	else if (en->epoch < batch_id) {
+		return false;
+	} else {
+		if (txn_id % g_node_cnt < g_node_id) {
+			return true;
+		} else if (txn_id %g_node_cnt > g_node_id) {
+			return false;
+		} else {
+			uint64_t id = (txn_id - en->start_txn_id) / g_node_cnt;
+			while(blocked) {}
+			ATOM_ADD(validationCount, 1);
+			if (!en || !en->list || en->txns_left == 0) {
+				ATOM_SUB(validationCount, 1);
+				return true;
+			}
+			for (uint64_t i = 0; i < id || i < en->max_size; i++) {
+				if (en->list[i].server_ack_cnt > 0) {
+					ATOM_SUB(validationCount, 1);
+					return false;
+				}
+			}
+			ATOM_SUB(validationCount, 1);
+		}
+	}
+	return true;
+}
+#endif

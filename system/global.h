@@ -334,6 +334,8 @@ enum RemReqType {
     LOG_FLUSHED,
     CALVIN_ACK,
     CONF_STAT,
+    REQ_VALID,
+    VALID,
   NO_MSG
 };
 

@@ -124,7 +124,7 @@ RC Row_snapper::lock_get(lock_t type, TxnManager *txn) {
                 
                 txn->incr_lr();
                 
-                int64_t batch_id;
+                uint64_t batch_id;
                 en = waiters_head;
                 while (en != NULL && en->txn->algo != CALVIN) {
                     en = en->next;
@@ -342,7 +342,7 @@ RC Row_snapper::lock_release(TxnManager *txn) {
         }
     }
 
-final:
+// final:
     uint64_t timespan = get_sys_clock() - starttime;
     txn->txn_stats.cc_time += timespan;
     txn->txn_stats.cc_time_short += timespan;

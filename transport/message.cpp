@@ -186,6 +186,10 @@ Message * Message::create_message(RemReqType rtype) {
     case RPREPARE:
       msg = new PrepareMessage;
       break;
+    case REQ_VALID:
+    case VALID:
+      msg = new ValidationMessage;
+      break;
     case RFWD:
       msg = new ForwardMessage;
       break;
@@ -420,6 +424,13 @@ void Message::release_message(Message * msg) {
       delete m_msg;
       break;
                    }
+    case REQ_VALID:
+    case VALID: {
+      ValidationMessage * m_msg = (ValidationMessage*)msg;
+      m_msg->release();
+      delete m_msg;
+      break;
+                  }
     case RFWD: {
       ForwardMessage * m_msg = (ForwardMessage*)msg;
       m_msg->release();
@@ -1206,6 +1217,51 @@ void PrepareMessage::copy_to_buf(char * buf) {
   uint64_t ptr = Message::mget_size();
 #if CC_ALG == TICTOC
   COPY_BUF(buf,_min_commit_ts,ptr);
+#endif
+  assert(ptr == get_size());
+}
+
+/************************/
+
+uint64_t ValidationMessage::get_size() {
+  uint64_t size = Message::mget_size();
+  size += sizeof(RC);
+#if CC_ALG == MIXED_LOCK
+  size += sizeof(uint64_t);
+  size += sizeof(uint64_t);
+#endif
+  return size;
+}
+
+void ValidationMessage::copy_from_txn(TxnManager * txn) {
+  Message::mcopy_from_txn(txn);
+  rc = txn->get_rc();
+#if CC_ALG == MIXED_LOCK
+  max_calvin_tid = txn->max_calvin_tid;
+  max_calvin_bid = txn->max_calvin_bid;
+#endif
+}
+void ValidationMessage::copy_to_txn(TxnManager * txn) {
+  Message::mcopy_to_txn(txn);
+}
+void ValidationMessage::copy_from_buf(char * buf) {
+  Message::mcopy_from_buf(buf);
+  uint64_t ptr = Message::mget_size();
+  COPY_VAL(rc,buf,ptr);
+#if CC_ALG == MIXED_LOCK
+  COPY_VAL(max_calvin_tid,buf,ptr);
+  COPY_VAL(max_calvin_bid,buf,ptr);
+#endif
+  assert(ptr == get_size());
+}
+
+void ValidationMessage::copy_to_buf(char * buf) {
+  Message::mcopy_to_buf(buf);
+  uint64_t ptr = Message::mget_size();
+  COPY_BUF(buf,rc,ptr);
+#if CC_ALG == MIXED_LOCK
+  COPY_BUF(buf,max_calvin_tid,ptr);
+  COPY_BUF(buf,max_calvin_bid,ptr);
 #endif
   assert(ptr == get_size());
 }

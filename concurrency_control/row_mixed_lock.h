@@ -4,24 +4,28 @@
 #if CC_ALG == MIXED_LOCK
 
 #include "row_lock.h"
-#if EXTREME_MODE
+// #if EXTREME_MODE
 #include <unordered_set>
-#endif
+// #endif
 
 class Row_mixed_lock {
 public:
     ts_t _tid;
     int isIntermediateState;
+    uint64_t max_calvin_read_tid;
+    uint64_t max_calvin_read_bid;
+    uint64_t max_calvin_write_tid;
+    uint64_t max_calvin_write_bid;
 
     RC lock_get(lock_t type, TxnManager * txn);
     RC lock_get(lock_t type, TxnManager * txn, uint64_t* &txnids, int &txncnt);
     RC lock_release(TxnManager * txn);
     void init(row_t * row);
-#if EXTREME_MODE
+// #if EXTREME_MODE
     bool validate(Access *access, bool in_write_set, unordered_set<uint64_t> &waitFor, bool &benefited);
-#else
+// #else
     bool validate(Access *access, bool in_write_set);
-#endif
+// #endif
 private:
     row_t * _row;
     pthread_mutex_t * _latch;

@@ -59,6 +59,9 @@ class Sequencer {
 	void process_txn(Message* msg, uint64_t thd_id, uint64_t early_start, uint64_t last_start,
 									 uint64_t wait_time, uint32_t abort_cnt);
 	void send_next_batch(uint64_t thd_id);
+#if CC_ALG == MIXED_LOCK
+	bool checkDependency(uint64_t batch_id, uint64_t txn_id);
+#endif
 
  private:
 	void reset_participating_nodes(bool * part_nodes);
@@ -81,6 +84,8 @@ class Sequencer {
 	Workload * _wl;
 #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
 	uint64_t last_epoch_max_id;
+	bool blocked;
+	uint64_t validationCount;
 #endif
 };
 
