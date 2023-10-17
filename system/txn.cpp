@@ -974,7 +974,11 @@ void TxnManager::cleanup_row(RC rc, uint64_t rid) {
 #if CC_ALG != CALVIN
 #if ISOLATION_LEVEL != READ_UNCOMMITTED
 	row_t * orig_r = txn->accesses[rid]->orig_row;
-#if CC_ALG == SNAPPER
+#if CC_ALG == MIXED_LOCK && DETERMINISTIC_ABORT_MODE
+	if (algo == CALVIN && ROLL_BACK && type == XP) {
+		orig_r->return_row(rc, type, this, txn->accesses[rid]->orig_data);
+	} else {
+#elif CC_ALG == SNAPPER
 	if (algo == CALVIN) {
 	} else if (ROLL_BACK && type == XP) {
 			orig_r->return_row(rc,type, this, txn->accesses[rid]->orig_data);
@@ -993,6 +997,7 @@ void TxnManager::cleanup_row(RC rc, uint64_t rid) {
 #else
 #if CC_ALG == MIXED_LOCK
 		if (algo == CALVIN) {
+			orig_r->return_row(rc, type, this, txn->accesses[rid]->data);
 		} else {
 			version = orig_r->return_row(rc, type, this, txn->accesses[rid]->data);
 		}
@@ -1018,6 +1023,17 @@ void TxnManager::cleanup_row(RC rc, uint64_t rid) {
 #endif
 #if ROLL_BACK && CC_ALG == SNAPPER
 	if (algo == WAIT_DIE && type == WR) {
+		txn->accesses[rid]->orig_data->free_row();
+		DEBUG_M("TxnManager::cleanup row_t free\n");
+		row_pool.put(get_thd_id(),txn->accesses[rid]->orig_data);
+		if(rc == RCOK) {
+			INC_STATS(get_thd_id(),record_write_cnt,1);
+			++txn_stats.write_cnt;
+		}
+	}
+#endif
+#if ROLL_BACK && CC_ALG == MIXED_LOCK && DETERMINISTIC_ABORT_MODE
+	if (algo == CALVIN && type == WR) {
 		txn->accesses[rid]->orig_data->free_row();
 		DEBUG_M("TxnManager::cleanup row_t free\n");
 		row_pool.put(get_thd_id(),txn->accesses[rid]->orig_data);
@@ -1092,7 +1108,7 @@ void TxnManager::cleanup(RC rc) {
 		row->return_row(rc,RD,this,row);
 	}
 #endif
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == SNAPPER
 	if (algo == CALVIN) {
 		// cleanup locked rows
 		for (uint64_t i = 0; i < calvin_locked_rows.size(); i++) {
@@ -1269,6 +1285,33 @@ RC TxnManager::get_row(row_t * row, access_t type, row_t *& row_rtn) {
 	logger.enqueueRecord(record);
 #endif
 	}
+#endif
+
+#if ROLL_BACK && CC_ALG == MIXED_LOCK && DETERMINISTIC_ABORT_MODE
+	if (algo == CALVIN) {
+		if (type == WR) {
+			uint64_t part_id = row->get_part_id();
+			DEBUG_M("TxnManager::get_row row_t alloc\n")
+			row_pool.get(get_thd_id(),access->orig_data);
+			access->orig_data->init(row->get_table(), part_id, 0);
+			access->orig_data->copy(row);
+			assert(access->orig_data->get_schema() == row->get_schema());
+
+			// ARIES-style physiological logging
+		#if LOGGING
+			// LogRecord * record =
+			// logger.createRecord(LRT_UPDATE,L_UPDATE,get_txn_id(),part_id,row->get_table()->get_table_id(),row->get_primary_key());
+			LogRecord *record = logger.createRecord(
+					get_txn_id(), L_UPDATE, row->get_table()->get_table_id(), row->get_primary_key());
+			if(g_repl_cnt > 0) {
+					msg_queue.enqueue(get_thd_id(), Message::create_message(record, LOG_MSG),
+														g_node_id + g_node_cnt + g_client_node_cnt);
+			}
+			logger.enqueueRecord(record);
+		#endif
+		}
+	}
+
 #endif
 
 #if CC_ALG == TICTOC

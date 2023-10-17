@@ -340,6 +340,9 @@ public:
   uint64_t mixed_lock_calvin_local_cnt;
   double extreme_mode_wait_time;
   uint64_t saved_txn_cnt;
+  uint64_t deterministic_abort_cnt_silo;
+  uint64_t deterministic_abort_cnt_calvin;
+
 
   //SNAPPER
   uint64_t snapper_false_deadlock;

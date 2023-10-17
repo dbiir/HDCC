@@ -171,6 +171,9 @@ Client_query_queue::initQueriesParallel(uint64_t thd_id) {
 			for(uint32_t server_id = 0; server_id < g_servers_per_client; server_id++){
 				for(uint32_t query_id = request_cnt / g_init_parallelism * tid; query_id < final_request; query_id++){
 					queries[batch_id][server_id][query_id] = gen->create_query(_wl, server_id + g_server_start_node, batch_id);
+				#if DETERMINISTIC_ABORT_MODE
+					setDeterministicAbort(queries[server_id][query_id]);
+				#endif
 				}
 			}
 		}
@@ -179,6 +182,9 @@ Client_query_queue::initQueriesParallel(uint64_t thd_id) {
 			for (UInt32 query_id = request_cnt / g_init_parallelism * tid; query_id < final_request;
 				query_id++) {
 			queries[server_id][query_id] = gen->create_query(_wl,server_id+g_server_start_node);
+		#if DETERMINISTIC_ABORT_MODE
+			setDeterministicAbort(queries[server_id][query_id]);
+		#endif
 			}
 		}
 	#endif
@@ -187,6 +193,11 @@ Client_query_queue::initQueriesParallel(uint64_t thd_id) {
 }
 
 bool Client_query_queue::done() { return false; }
+
+void Client_query_queue::setDeterministicAbort(BaseQuery *query) {
+	double r = (double)(rand() % 10000) / 10000;
+	query->isDeterministicAbort = (r < g_deterministic_abort_ratio);
+}
 
 BaseQuery *
 Client_query_queue::get_next_query(uint64_t server_id,uint64_t thread_id) {

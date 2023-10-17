@@ -269,6 +269,18 @@ void WorkerThread::calvin_wrapup() {
   release_txn_man();
 }
 
+void WorkerThread::calvin_abort() {
+  
+  // only txn_manager's abort is called, worker thread's abort function is neglected
+  // since we replace it by sending aborted txn to sequencer directly
+  txn_man->abort();
+  if (txn_man->return_id == g_node_id) {
+    work_queue.sequencer_enqueue(_thd_id, Message::create_message(txn_man, CALVIN_ABORT));
+    INC_STATS(get_thd_id(), deterministic_abort_cnt_calvin, 1);
+  }
+  release_txn_man();
+}
+
 // Can't use txn_man after this function
 void WorkerThread::commit() {
   assert(txn_man);
@@ -1175,6 +1187,13 @@ RC WorkerThread::process_calvin_rtxn(Message * msg) {
   // if((txn_man->phase==6 && rc == RCOK) || txn_man->active_cnt == 0 || txn_man->participant_cnt ==
   // 1) {
   if(rc == RCOK && txn_man->calvin_exec_phase_done()) {
+  #if DETERMINISTIC_ABORT_MODE
+    if (txn_man->query->isDeterministicAbort) {
+      txn_man->query->isDeterministicAbort = false;
+      calvin_abort();
+      return Abort;
+    }
+  #endif
     calvin_wrapup();
   }
   return RCOK;

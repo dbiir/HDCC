@@ -265,6 +265,10 @@ RC CalvinSequencerThread::run() {
 				// Free message here
 				msg->release();
 				break;
+			case CALVIN_ABORT:
+				seq_man.process_abort(msg, get_thd_id());
+				// Don't free message yet
+				break;
 			default:
 				assert(false);
 		}

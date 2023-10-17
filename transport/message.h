@@ -317,6 +317,7 @@ public:
   uint64_t client_startts;
   uint64_t first_startts;
   Array<uint64_t> partitions;
+  bool isDeterministicAbort;
 };
 
 class YCSBClientQueryMessage : public ClientQueryMessage {
@@ -425,6 +426,7 @@ public:
   void release() {}
 
   uint64_t pid;
+  bool isDeterministicAbort;
 #if CC_ALG == WAIT_DIE || CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == DTA || CC_ALG == WOOKONG || CC_ALG == SNAPPER
   uint64_t ts;
 #endif

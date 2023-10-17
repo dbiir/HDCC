@@ -37,6 +37,7 @@ public:
 	BaseQuery * get_next_query(uint64_t server_id,uint64_t thread_id);
   void initQueriesParallel(uint64_t thd_id);
   static void * initQueriesHelper(void * context);
+  void setDeterministicAbort(BaseQuery *query);
 
 private:
 	Workload * _wl;

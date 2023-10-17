@@ -42,7 +42,8 @@ public:
     Array<uint64_t> partitions_touched;
     Array<uint64_t> active_nodes;
     Array<uint64_t> participant_nodes;
-
+    // deterministic abort, to simulate txns that must abort due to deterministic conditions
+    bool isDeterministicAbort;
 };
 
 class QueryGenerator {

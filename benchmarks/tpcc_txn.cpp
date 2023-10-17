@@ -94,6 +94,13 @@ RC TPCCTxnManager::run_txn() {
 	txn_stats.process_time_short += curr_time - starttime;
 
 	if(IS_LOCAL(get_txn_id())) {
+	#if DETERMINISTIC_ABORT_MODE
+		if (query->isDeterministicAbort && rc == RCOK && is_done()) {
+			query->isDeterministicAbort = false;
+			rc = Abort;
+			INC_STATS(get_thd_id(), deterministic_abort_cnt_silo, 1);
+		}
+	#endif
 		if(is_done() && rc == RCOK)
 			rc = start_commit();
 		else if(rc == Abort)

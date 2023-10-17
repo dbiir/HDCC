@@ -229,6 +229,49 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 	INC_STATS(thd_id,seq_ack_time,get_sys_clock() - prof_stat);
 }
 
+void Sequencer::process_abort(Message *msg, uint64_t thd_id) {
+	qlite_ll * en = wl_head;
+	while(en != NULL && en->epoch != msg->get_batch_id()) {
+		en = en->next;
+	}
+	assert(en);
+	qlite * wait_list = en->list;
+	assert(wait_list != NULL);
+	assert(en->txns_left > 0);
+
+#if CC_ALG == MIXED_LOCK
+	uint64_t id = (msg->get_txn_id() - en->start_txn_id) / g_node_cnt;
+#else
+	uint64_t id = msg->get_txn_id() / g_node_cnt;
+#endif
+	// recover "return node id"
+	msg->return_node_id = wait_list[id].client_id;
+
+
+	uint64_t prof_stat = get_sys_clock();
+	assert(wait_list[id].server_ack_cnt > 0);
+
+	en->txns_left--;
+	if (en->txns_left == 0) {
+		DEBUG("FINISHED BATCH %ld\n",en->epoch);
+		LIST_REMOVE_HT(en,wl_head,wl_tail);
+#if CC_ALG == MIXED_LOCK
+		blocked = true;
+		while(validationCount > 0) {}
+#endif
+		mem_allocator.free(en->list, sizeof(qlite) * en->max_size);
+		mem_allocator.free(en, sizeof(qlite_ll));
+#if CC_ALG == MIXED_LOCK
+		blocked = false;
+#endif
+	}
+	INC_STATS(thd_id, seq_ack_time, get_sys_clock() - prof_stat);
+	
+	// set it to a new client query
+	msg->rtype = CL_QRY;
+	process_txn(msg, thd_id, 0, 0, 0, 0);
+}
+
 // Assumes 1 thread does sequencer work
 void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 														uint64_t last_start, uint64_t wait_time, uint32_t abort_cnt) {

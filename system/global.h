@@ -292,6 +292,7 @@ extern UInt64 g_upper_bound;
 extern UInt64 g_total_shard_num;
 extern UInt64 g_conflict_send_interval;
 extern double g_prorate_ratio;
+extern double g_deterministic_abort_ratio;
 extern queue<ConflictStaticsMessage*> g_conflict_queue;
 extern std::vector<double> dy_write;
 extern std::vector<double> dy_skew;
@@ -333,6 +334,7 @@ enum RemReqType {
     LOG_MSG_RSP,
     LOG_FLUSHED,
     CALVIN_ACK,
+    CALVIN_ABORT,
     CONF_STAT,
     REQ_VALID,
     VALID,

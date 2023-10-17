@@ -234,6 +234,7 @@ UInt64 g_total_shard_num = (TPCCTableKey::CUST_BY_NAME_END + TPCCTableKey::CUST_
 #endif
 UInt64 g_conflict_send_interval = CONFLICT_SEND_INTERVAL;
 double g_prorate_ratio = PRORATE_RATIO;
+double g_deterministic_abort_ratio = DETERMINISTIC_ABORT_RATIO;
 queue<ConflictStaticsMessage*> g_conflict_queue;
 std::vector<double> dy_write;
 std::vector<double> dy_skew;

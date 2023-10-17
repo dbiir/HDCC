@@ -804,8 +804,14 @@ uint64_t row_t::return_row(RC rc, access_t type, TxnManager *txn, row_t *row) {
 	return 0;
 #elif CC_ALG == MIXED_LOCK
 	if (txn->algo == CALVIN) {
-		// assert (row == NULL || row == this || type == XP);
+	#if DETERMINISTIC_ABORT_MODE
+		assert (row == NULL || row == this || type == XP);
+		if (ROLL_BACK && type == XP) {  // recover from previous writes
+			this->copy(row);
+		}
+	#else
 		assert (row == NULL || row == this);
+	#endif
 		this->manager->lock_release(txn);
 		return 0;
 	} else {

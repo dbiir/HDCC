@@ -172,6 +172,7 @@ Message * Message::create_message(RemReqType rtype) {
     case CL_QRY_O:
     case RTXN:
     case RTXN_CONT:
+    case CALVIN_ABORT:
 #if WORKLOAD == YCSB
       msg = new YCSBClientQueryMessage;
 #elif WORKLOAD == TPCC
@@ -472,6 +473,7 @@ uint64_t QueryMessage::get_size() {
     CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3 || CC_ALG == DLI_MVCC
   size += sizeof(start_ts);
 #endif
+  size += sizeof(bool);
   return size;
 }
 
@@ -488,6 +490,7 @@ void QueryMessage::copy_from_txn(TxnManager * txn) {
 #endif
 #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   algo = txn->algo;
+  isDeterministicAbort = txn->query->isDeterministicAbort;
 #endif
 }
 
@@ -504,6 +507,7 @@ void QueryMessage::copy_to_txn(TxnManager * txn) {
 #endif
 #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
   txn->algo = algo;
+  txn->query->isDeterministicAbort = isDeterministicAbort;
 #endif
 }
 
@@ -520,6 +524,7 @@ void QueryMessage::copy_from_buf(char * buf) {
     CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3 || CC_ALG == DLI_MVCC
  COPY_VAL(start_ts,buf,ptr);
 #endif
+  COPY_VAL(isDeterministicAbort, buf, ptr);
 }
 
 void QueryMessage::copy_to_buf(char * buf) {
@@ -535,6 +540,7 @@ void QueryMessage::copy_to_buf(char * buf) {
     CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3 || CC_ALG == DLI_MVCC
  COPY_BUF(buf,start_ts,ptr);
 #endif
+  COPY_BUF(buf, isDeterministicAbort, ptr);
 }
 
 /************************/
@@ -581,6 +587,7 @@ void YCSBClientQueryMessage::copy_from_txn(TxnManager * txn) {
   }
 */
   requests.copy(((YCSBQuery*)(txn->query))->requests);
+  isDeterministicAbort = txn->query->isDeterministicAbort;
 }
 
 void YCSBClientQueryMessage::copy_to_txn(TxnManager * txn) {
@@ -1025,12 +1032,14 @@ uint64_t ClientQueryMessage::get_size() {
   */
   size += sizeof(size_t);
   size += sizeof(uint64_t) * partitions.size();
+  size += sizeof(bool);
   return size;
 }
 
 void ClientQueryMessage::copy_from_query(BaseQuery * query) {
   partitions.clear();
   partitions.copy(query->partitions);
+  isDeterministicAbort = query->isDeterministicAbort;
 }
 
 void ClientQueryMessage::copy_from_txn(TxnManager * txn) {
@@ -1039,6 +1048,7 @@ void ClientQueryMessage::copy_from_txn(TxnManager * txn) {
   partitions.clear();
   partitions.copy(txn->query->partitions);
   client_startts = txn->client_startts;
+  isDeterministicAbort = txn->query->isDeterministicAbort;
 }
 
 void ClientQueryMessage::copy_to_txn(TxnManager * txn) {
@@ -1048,6 +1058,7 @@ void ClientQueryMessage::copy_to_txn(TxnManager * txn) {
   txn->query->partitions.append(partitions);
   txn->client_startts = client_startts;
   txn->client_id = return_node_id;
+  txn->query->isDeterministicAbort = isDeterministicAbort;
 }
 
 void ClientQueryMessage::copy_from_buf(char * buf) {
@@ -1064,6 +1075,7 @@ void ClientQueryMessage::copy_from_buf(char * buf) {
     COPY_VAL(part,buf,ptr);
     partitions.add(part);
   }
+  COPY_VAL(isDeterministicAbort, buf, ptr);
 }
 
 void ClientQueryMessage::copy_to_buf(char * buf) {
@@ -1077,6 +1089,7 @@ void ClientQueryMessage::copy_to_buf(char * buf) {
     uint64_t part = partitions[i];
     COPY_BUF(buf,part,ptr);
   }
+  COPY_BUF(buf, isDeterministicAbort, ptr);
 }
 
 /************************/

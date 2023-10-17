@@ -35,6 +35,7 @@ public:
     void abort();
     TxnManager * get_transaction_manager(Message * msg);
     void calvin_wrapup();
+    void calvin_abort();
     RC process_rfin(Message * msg);
     RC process_rfwd(Message * msg);
     RC process_rack_rfin(Message * msg);

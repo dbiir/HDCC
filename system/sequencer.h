@@ -58,6 +58,7 @@ class Sequencer {
 	void process_ack(Message * msg, uint64_t thd_id);
 	void process_txn(Message* msg, uint64_t thd_id, uint64_t early_start, uint64_t last_start,
 									 uint64_t wait_time, uint32_t abort_cnt);
+	void process_abort(Message *msg, uint64_t thd_id);
 	void send_next_batch(uint64_t thd_id);
 #if CC_ALG == MIXED_LOCK
 	bool checkDependency(uint64_t batch_id, uint64_t txn_id);

@@ -165,7 +165,7 @@
 // all transactions acquire tuples according to the primary key order.
 #define KEY_ORDER         false
 // transaction roll back changes after abort
-#define ROLL_BACK         true
+#define ROLL_BACK         false
 // per-row lock/ts management or central lock/ts management
 #define CENTRAL_MAN         false
 #define BUCKET_CNT          31
@@ -215,6 +215,8 @@
 #define PRORATE_TRANSACTION false
 #define PRORATE_RATIO 0
 #define EXTREME_MODE false
+#define DETERMINISTIC_ABORT_MODE false
+#define DETERMINISTIC_ABORT_RATIO 0.2
 // [TICTOC]
 #define MAX_NUM_WAITS 4
 #define PRE_ABORT true
