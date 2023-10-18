@@ -23,9 +23,10 @@
 void LogThread::setup() {}
 
 RC LogThread::run() {
+  uint64_t id = get_thd_id() - g_thread_cnt - g_rem_thread_cnt - g_send_thread_cnt;
   tsetup();
 	while (!simulation->is_done()) {
-    logger.processRecord(get_thd_id());
+    logger.processRecord(get_thd_id(), id);
     //logger.flushBufferCheck();
   }
   return FINISH;

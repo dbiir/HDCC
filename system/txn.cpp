@@ -413,6 +413,7 @@ void TxnManager::reset() {
 	aborted = false;
 	return_id = UINT64_MAX;
 	twopl_wait_start = 0;
+	log_flushed = false;
 
 	//ready = true;
 
@@ -536,14 +537,26 @@ RC TxnManager::commit() {
 	inout_table.set_state(get_thd_id(), get_txn_id(), SSI_COMMITTED);
 #endif
 	commit_stats();
-#if LOGGING
-	LogRecord * record = logger.createRecord(get_txn_id(),L_NOTIFY,0,0);
-	if(g_repl_cnt > 0) {
-		msg_queue.enqueue(get_thd_id(), Message::create_message(record, LOG_MSG),
-											g_node_id + g_node_cnt + g_client_node_cnt);
+#if LOGGING && CC_ALG != CALVIN
+#if CC_ALG == MIXED_LOCK
+	if (algo != CALVIN) {
+		LogRecord * record = logger.createRecord(get_txn_id(),L_COMMIT,0,0,max_calvin_tid);
+#else
+		LogRecord * record = logger.createRecord(get_txn_id(),L_COMMIT,0,0);
+#endif
+		if(g_repl_cnt > 0) {
+			msg_queue.enqueue(get_thd_id(), Message::create_message(record, LOG_MSG),
+												g_node_id + g_node_cnt + g_client_node_cnt);
+		}
+		logger.enqueueRecord(record);
+#if SYNCHRONIZATION
+		if (IS_LOCAL(get_txn_id())) {
+			return WAIT;
+		}
+#endif
+#if CC_ALG == MIXED_LOCK
 	}
-	logger.enqueueRecord(record);
-	return WAIT;
+#endif
 #endif
 	return Commit;
 }
@@ -583,6 +596,20 @@ RC TxnManager::abort() {
 	if (IS_LOCAL(get_txn_id()) && warmup_done) {
 		INC_STATS_ARR(get_thd_id(),start_abort_commit_latency, timespan);
 	}
+#if LOGGING && LOG_REDO && CC_ALG != CALVIN
+#if CC_ALG == MIXED_LOCK
+	if (algo != CALVIN) {
+#endif
+		LogRecord * record = logger.createRecord(get_txn_id(),L_ABORT,0,0);
+		if(g_repl_cnt > 0) {
+			msg_queue.enqueue(get_thd_id(), Message::create_message(record, LOG_MSG),
+												g_node_id + g_node_cnt + g_client_node_cnt);
+		}
+		logger.enqueueRecord(record);
+#if CC_ALG == MIXED_LOCK
+	}
+#endif
+#endif
 	/*
 	// latency from most recent start or restart of transaction
 	PRINT_LATENCY("lat_s %ld %ld 0 %f %f %f %f %f %f 0.0\n"
@@ -657,6 +684,20 @@ RC TxnManager::start_commit() {
 	RC rc = RCOK;
 	DEBUG("%ld start_commit RO?%d\n",get_txn_id(),query->readonly());
 	if(is_multi_part()) {
+#if LOGGING && LOG_REDO && CC_ALG != CALVIN
+#if CC_ALG == MIXED_LOCK
+	if (algo != CALVIN) {
+#endif
+		LogRecord * record = logger.createRecord(get_txn_id(),L_FLUSH,0,0);
+		if(g_repl_cnt > 0) {
+			msg_queue.enqueue(get_thd_id(), Message::create_message(record, LOG_MSG),
+												g_node_id + g_node_cnt + g_client_node_cnt);
+		}
+		logger.enqueueRecord(record);
+#if CC_ALG == MIXED_LOCK
+	}
+#endif
+#endif
 		if(CC_ALG == TICTOC) {
 			rc = validate();
 			if (rc != Abort) {
@@ -1296,22 +1337,27 @@ RC TxnManager::get_row(row_t * row, access_t type, row_t *& row_rtn) {
 			access->orig_data->init(row->get_table(), part_id, 0);
 			access->orig_data->copy(row);
 			assert(access->orig_data->get_schema() == row->get_schema());
-
-			// ARIES-style physiological logging
-		#if LOGGING
-			// LogRecord * record =
-			// logger.createRecord(LRT_UPDATE,L_UPDATE,get_txn_id(),part_id,row->get_table()->get_table_id(),row->get_primary_key());
-			LogRecord *record = logger.createRecord(
-					get_txn_id(), L_UPDATE, row->get_table()->get_table_id(), row->get_primary_key());
-			if(g_repl_cnt > 0) {
-					msg_queue.enqueue(get_thd_id(), Message::create_message(record, LOG_MSG),
-														g_node_id + g_node_cnt + g_client_node_cnt);
-			}
-			logger.enqueueRecord(record);
-		#endif
 		}
 	}
 
+#endif
+
+#if LOGGING && LOG_REDO && CC_ALG != CALVIN
+	if (type == WR) {
+#if CC_ALG == MIXED_LOCK
+		if (algo != CALVIN) {
+#endif
+			LogRecord *record = logger.createRecord(
+					get_txn_id(), L_UPDATE, row->get_table()->get_table_id(), row->get_primary_key());
+			if(g_repl_cnt > 0) {
+				msg_queue.enqueue(get_thd_id(), Message::create_message(record, LOG_MSG),
+														g_node_id + g_node_cnt + g_client_node_cnt);
+			}
+			logger.enqueueRecord(record);
+#if CC_ALG == MIXED_LOCK
+		}
+#endif
+	}
 #endif
 
 #if CC_ALG == TICTOC

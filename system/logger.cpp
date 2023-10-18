@@ -5,14 +5,28 @@
 #include <fstream>
 
 
-void Logger::init(const char * log_file_name) {
+void Logger::init(const char * log_file_name, const char * txn_file_name) {
   this->log_file_name = log_file_name;
-  log_file.open(log_file_name, ios::out | ios::app | ios::binary);
-  assert(log_file.is_open());
-  pthread_mutex_init(&mtx,NULL);
+  this->txn_file_name = txn_file_name;
+  log_file = new std::ofstream[g_logger_thread_cnt];
+  for (uint64_t i = 0; i < g_logger_thread_cnt; i++) {
+    log_file[i].open(std::string(log_file_name) + "_" + std::to_string(i), ios::out | ios::app | ios::binary);
+    assert(log_file[i].is_open());
+  }
+  txn_file.open(txn_file_name, ios::out | ios::app | ios::binary);
+  assert(txn_file.is_open());
+  log_queue = new boost::lockfree::queue<LogRecord *> *[g_logger_thread_cnt];
+  for (uint64_t i = 0; i < g_logger_thread_cnt; i++) {
+    log_queue[i] = new boost::lockfree::queue<LogRecord *> (0);
+  }
 }
 
-void Logger::release() { log_file.close(); }
+void Logger::release() {
+  for (uint64_t i = 0; i < g_logger_thread_cnt; i++) {
+    log_file[i].close();
+  }
+  txn_file.close();
+}
 
 LogRecord* Logger::createRecord(uint64_t txn_id, LogIUD iud, uint64_t table_id, uint64_t key) {
   LogRecord * record = (LogRecord*)mem_allocator.alloc(sizeof(LogRecord));
@@ -24,6 +38,21 @@ LogRecord* Logger::createRecord(uint64_t txn_id, LogIUD iud, uint64_t table_id, 
   record->rcd.key = key;
   return record;
 }
+
+#if CC_ALG == MIXED_LOCK
+LogRecord* Logger::createRecord(uint64_t txn_id, LogIUD iud, uint64_t table_id, uint64_t key,
+                                uint64_t max_calvin_tid) {
+  LogRecord * record = (LogRecord*)mem_allocator.alloc(sizeof(LogRecord));
+  record->rcd.init();
+  record->rcd.lsn = ATOM_FETCH_ADD(lsn,1);
+  record->rcd.iud = iud;
+  record->rcd.txn_id = txn_id;
+  record->rcd.table_id = table_id;
+  record->rcd.key = key;
+  record->rcd.max_calvin_tid = max_calvin_tid;
+  return record;
+}
+#endif
 
 LogRecord* Logger::createRecord(LogRecord* record) {
   LogRecord * my_record = (LogRecord*)mem_allocator.alloc(sizeof(LogRecord));
@@ -45,32 +74,36 @@ void LogRecord::copyRecord(LogRecord* record) {
 
 void Logger::enqueueRecord(LogRecord* record) {
   DEBUG("Enqueue Log Record %ld\n",record->rcd.txn_id);
-  pthread_mutex_lock(&mtx);
-  log_queue.push(record);
-  pthread_mutex_unlock(&mtx);
+  uint64_t id = record->rcd.txn_id % g_logger_thread_cnt;
+  log_queue[id]->push(record);
 }
 
-void Logger::processRecord(uint64_t thd_id) {
-  if (log_queue.empty()) return;
+void Logger::processRecord(uint64_t thd_id, uint64_t id) {
   LogRecord * record = NULL;
-  pthread_mutex_lock(&mtx);
-  if(!log_queue.empty()) {
-    record = log_queue.front();
-    log_queue.pop();
-  }
-  pthread_mutex_unlock(&mtx);
+  bool valid = log_queue[id]->pop(record);
 
-  if(record) {
+  if(valid) {
     uint64_t starttime = get_sys_clock();
     DEBUG("Dequeue Log Record %ld\n",record->rcd.txn_id);
-    if(record->rcd.iud == L_NOTIFY) {
-      flushBuffer(thd_id);
-      work_queue.enqueue(thd_id,Message::create_message(record->rcd.txn_id,LOG_FLUSHED),false);
+    if(record->rcd.iud == L_C_FLUSH) {
+      flushBuffer(thd_id, false, id);
+    } else if(record->rcd.iud == L_FLUSH) {
+      flushBuffer(thd_id, true, id);
+    } else {
+      writeToBuffer(thd_id, record, id);
+      log_buf_cnt++;
 
+      if(record->rcd.iud == L_COMMIT || record->rcd.iud == L_ABORT) {
+        flushBuffer(thd_id, true, id);
+      }
+#if SYNCHRONIZATION
+      if (record->rcd.iud == L_COMMIT) {
+        if (IS_LOCAL(record->rcd.txn_id)) {
+          work_queue.enqueue(thd_id,Message::create_message(record->rcd.txn_id,LOG_FLUSHED),false);
+        }
+      }
+#endif
     }
-    writeToBuffer(thd_id,record);
-    //writeToBuffer((char*)(&record->rcd),sizeof(record->rcd));
-    log_buf_cnt++;
     mem_allocator.free(record,sizeof(LogRecord));
     INC_STATS(thd_id,log_process_time,get_sys_clock() - starttime);
   }
@@ -84,7 +117,7 @@ void Logger::writeToBuffer(uint64_t thd_id, char * data, uint64_t size) {
   //memcpy(aries_log_buffer + offset, data, size);
   //aries_write_offset += size;
   uint64_t starttime = get_sys_clock();
-  log_file.write(data,size);
+  txn_file.write(data,size);
   INC_STATS(thd_id,log_write_time,get_sys_clock() - starttime);
   INC_STATS(thd_id,log_write_cnt,1);
 
@@ -94,11 +127,11 @@ void Logger::notify_on_sync(uint64_t txn_id) {
   LogRecord * record = (LogRecord*)mem_allocator.alloc(sizeof(LogRecord));
   record->rcd.init();
   record->rcd.txn_id = txn_id;
-  record->rcd.iud = L_NOTIFY;
+  record->rcd.iud = L_COMMIT;
   enqueueRecord(record);
 }
 
-void Logger::writeToBuffer(uint64_t thd_id, LogRecord * record) {
+void Logger::writeToBuffer(uint64_t thd_id, LogRecord * record, uint64_t id) {
   DEBUG("Buffer Write\n");
   //memcpy(aries_log_buffer + offset, data, size);
   //aries_write_offset += size;
@@ -117,14 +150,14 @@ void Logger::writeToBuffer(uint64_t thd_id, LogRecord * record) {
 
 #else
 
-  WRITE_VAL(log_file,record->rcd.checksum);
-  WRITE_VAL(log_file,record->rcd.lsn);
-  WRITE_VAL(log_file,record->rcd.type);
-  WRITE_VAL(log_file,record->rcd.iud);
-  WRITE_VAL(log_file,record->rcd.txn_id);
+  WRITE_VAL(log_file[id],record->rcd.checksum);
+  WRITE_VAL(log_file[id],record->rcd.lsn);
+  WRITE_VAL(log_file[id],record->rcd.type);
+  WRITE_VAL(log_file[id],record->rcd.iud);
+  WRITE_VAL(log_file[id],record->rcd.txn_id);
   //WRITE_VAL(log_file,record->rcd.partid);
-  WRITE_VAL(log_file,record->rcd.table_id);
-  WRITE_VAL(log_file,record->rcd.key);
+  WRITE_VAL(log_file[id],record->rcd.table_id);
+  WRITE_VAL(log_file[id],record->rcd.key);
   /*
   WRITE_VAL(log_file,record->rcd.n_cols);
   WRITE_VAL(log_file,record->rcd.cols);
@@ -137,16 +170,14 @@ void Logger::writeToBuffer(uint64_t thd_id, LogRecord * record) {
 
 }
 
-void Logger::flushBufferCheck(uint64_t thd_id) {
-  if(log_buf_cnt >= g_log_buf_max || get_sys_clock() - last_flush > g_log_flush_timeout) {
-    flushBuffer(thd_id);
-  }
-}
-
-void Logger::flushBuffer(uint64_t thd_id) {
+void Logger::flushBuffer(uint64_t thd_id, bool isLog, uint64_t id) {
   DEBUG("Flush Buffer\n");
   uint64_t starttime = get_sys_clock();
-  log_file.flush();
+  if (isLog) {
+    log_file[id].flush();
+  } else {
+    txn_file.flush();
+  }
   INC_STATS(thd_id,log_flush_time,get_sys_clock() - starttime);
   INC_STATS(thd_id,log_flush_cnt,1);
 

@@ -274,7 +274,7 @@ int main(int argc, char *argv[]) {
 #if LOGGING
 	printf("Initializing logger... ");
 	fflush(stdout);
-	logger.init("logfile.log");
+	logger.init("logfile.log", "txnfile.log");
 	printf("Done\n");
 #endif
 
@@ -298,7 +298,7 @@ int main(int argc, char *argv[]) {
 	uint64_t sthd_cnt = g_send_thread_cnt;
 	uint64_t all_thd_cnt = thd_cnt + rthd_cnt + sthd_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + 1;
 #if LOGGING
-		all_thd_cnt += 1; // logger thread
+		all_thd_cnt += g_logger_thread_cnt;
 #endif
 #if CC_ALG == CALVIN
 		all_thd_cnt += 2; // sequencer + scheduler thread
@@ -325,7 +325,7 @@ int main(int argc, char *argv[]) {
 	input_thds = new InputThread[rthd_cnt];
 	output_thds = new OutputThread[sthd_cnt];
 	abort_thds = new AbortThread[1];
-	log_thds = new LogThread[1];
+	log_thds = new LogThread[g_logger_thread_cnt];
 #if STATS_EVERY_INTERVAL
 	stats_per_interval_thds = new StatsPerIntervalThread[1];
 #endif
@@ -421,8 +421,17 @@ int main(int argc, char *argv[]) {
 		pthread_create(&p_thds[id++], NULL, run_thread, (void *)&output_thds[j]);
 	}
 #if LOGGING
-	log_thds[0].init(id,g_node_id,m_wl);
-	pthread_create(&p_thds[id++], NULL, run_thread, (void *)&log_thds[0]);
+	for (uint64_t i = 0; i < g_logger_thread_cnt; i++) {
+#if SET_AFFINITY
+		CPU_ZERO(&cpus);
+		CPU_SET(cpu_cnt, &cpus);
+		pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+		cpu_cnt++;
+#endif
+		assert(id >= wthd_cnt + rthd_cnt + sthd_cnt && id < wthd_cnt + rthd_cnt + sthd_cnt + g_logger_thread_cnt);
+		log_thds[i].init(id,g_node_id,m_wl);
+		pthread_create(&p_thds[id++], NULL, run_thread, (void *)&log_thds[i]);
+	}
 #endif
 
 #if CC_ALG != CALVIN

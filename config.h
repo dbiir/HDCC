@@ -69,6 +69,7 @@
 #define THREAD_CNT 4
 #define REM_THREAD_CNT 2
 #define SEND_THREAD_CNT 2
+#define LOGGER_THREAD_CNT 3
 #define CORE_CNT 2
 // PART_CNT should be at least NODE_CNT
 #define PART_CNT NODE_CNT
@@ -239,6 +240,7 @@
 #define LOG_COMMAND         false
 #define LOG_REDO          false
 #define LOGGING false
+#define SYNCHRONIZATION false
 #define LOG_BUF_MAX 10
 #define LOG_BUF_TIMEOUT 10 * 1000000UL // 10ms
 

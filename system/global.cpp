@@ -161,7 +161,7 @@ UInt32 g_thread_cnt = THREAD_CNT;
 UInt32 g_rem_thread_cnt = REM_THREAD_CNT;
 UInt32 g_abort_thread_cnt = 1;
 #if LOGGING
-UInt32 g_logger_thread_cnt = 1;
+UInt32 g_logger_thread_cnt = LOGGER_THREAD_CNT;
 #else
 UInt32 g_logger_thread_cnt = 0;
 #endif

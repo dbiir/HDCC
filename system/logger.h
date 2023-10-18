@@ -7,6 +7,7 @@
 #include <set>
 #include <queue>
 #include <fstream>
+#include <boost/lockfree/queue.hpp>
 
 enum LogRecType {
   LRT_INVALID = 0,
@@ -19,7 +20,10 @@ enum LogIUD {
   L_INSERT = 0,
   L_UPDATE,
   L_DELETE,
-  L_NOTIFY
+  L_COMMIT,
+  L_ABORT,
+  L_FLUSH,
+  L_C_FLUSH
 };
 
 // Command log record (logical logging)
@@ -48,6 +52,9 @@ struct AriesLogRecord {
     txn_id = UINT64_MAX;
     table_id = 0;
     key = UINT64_MAX;
+#if CC_ALG == MIXED_LOCK
+    max_calvin_tid = UINT64_MAX;
+#endif
   }
 
   uint32_t checksum;
@@ -58,6 +65,9 @@ struct AriesLogRecord {
   //uint32_t partid; // partition id
   uint32_t table_id; // table being updated
   uint64_t key; // primary key (determines the partition ID)
+#if CC_ALG == MIXED_LOCK
+  uint64_t max_calvin_tid;
+#endif
   // TODO: column list
 
   /*lsn
@@ -92,9 +102,8 @@ private:
 
 class Logger {
 public:
-  void init(const char * log_file);
+  void init(const char * log_file, const char * txn_file);
   void release();
-  void flushBufferCheck(uint64_t thd_id);
   LogRecord * createRecord(LogRecord* record);
 
   LogRecord * createRecord(
@@ -102,20 +111,25 @@ public:
       uint64_t txn_id, LogIUD iud,
     //uint64_t partid,
       uint64_t table_id, uint64_t key);
+#if CC_ALG == MIXED_LOCK
+  LogRecord * createRecord(uint64_t txn_id,LogIUD iud,uint64_t table_id,uint64_t key,uint64_t max_calvin_tid);
+#endif
   void enqueueRecord(LogRecord* record);
-  void processRecord(uint64_t thd_id);
+  void processRecord(uint64_t thd_id,uint64_t id);
   void writeToBuffer(uint64_t thd_id,char * data, uint64_t size);
-  void writeToBuffer(uint64_t thd_id,LogRecord* record);
+  void writeToBuffer(uint64_t thd_id,LogRecord* record,uint64_t id);
   uint64_t reserveBuffer(uint64_t size);
   void notify_on_sync(uint64_t txn_id);
 private:
   pthread_mutex_t mtx;
   uint64_t lsn;
 
-  void flushBuffer(uint64_t thd_id);
-  std::queue<LogRecord*> log_queue;
+  void flushBuffer(uint64_t thd_id,bool isLog,uint64_t id);
+  boost::lockfree::queue<LogRecord *> ** log_queue;
   const char * log_file_name;
-  std::ofstream log_file;
+  const char * txn_file_name;
+  std::ofstream * log_file;
+  std::ofstream txn_file;
   uint64_t aries_write_offset;
   std::set<uint64_t> txns_to_notify;
   uint64_t last_flush;

@@ -406,6 +406,10 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 			while (!fill_queue[*participant].push(msg) && !simulation->is_done()) {
 			}
 		}
+#if LOGGING & LOG_REDO
+		char * data = (char *)malloc(sizeof(char) * 10);
+		logger.writeToBuffer(thd_id, data, sizeof(data));
+#endif
 
 	INC_STATS(thd_id,seq_process_cnt,1);
 	INC_STATS(thd_id,seq_process_time,get_sys_clock() - starttime);
@@ -416,6 +420,13 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 void Sequencer::send_next_batch(uint64_t thd_id) {
 	uint64_t prof_stat = get_sys_clock();
 	qlite_ll * en = wl_tail;
+#if LOGGING & LOG_REDO
+#if CC_ALG == MIXED_LOCK
+	logger.enqueueRecord(logger.createRecord(thd_id, L_C_FLUSH, 0, 0, 0));
+#else
+	logger.enqueueRecord(logger.createRecord(thd_id, L_C_FLUSH, 0, 0));
+#endif
+#endif
 	bool empty = true;
 	if(en && en->epoch == simulation->get_seq_epoch()) {
 		DEBUG("SEND NEXT BATCH %ld [%ld,%ld] %ld\n", thd_id, simulation->get_seq_epoch(), en->epoch,

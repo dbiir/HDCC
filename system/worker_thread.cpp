@@ -763,7 +763,13 @@ RC WorkerThread::process_rack_rfin(Message * msg) {
   if(txn_man->get_rc() == RCOK) {
     INC_STATS(get_thd_id(), trans_commit_network, get_sys_clock() - txn_man->txn_stats.trans_commit_network_start_time);
     //txn_man->commit();
+#if LOGGING && SYNCHRONIZATION
+    if (txn_man->log_flushed) {
+      commit();
+    }
+#else
     commit();
+#endif
   } else {
     INC_STATS(get_thd_id(), trans_abort_network, get_sys_clock() - txn_man->txn_stats.trans_abort_network_start_time);
     //txn_man->abort();
@@ -916,6 +922,20 @@ RC WorkerThread::process_rtxn_cont(Message * msg) {
 RC WorkerThread::process_rprepare(Message * msg) {
   DEBUG("RPREP %ld\n",msg->get_txn_id());
     RC rc = RCOK;
+#if LOGGING && LOG_REDO && CC_ALG != CALVIN
+#if CC_ALG == MIXED_LOCK
+  if (txn_man->algo != CALVIN) {
+#endif
+    LogRecord * record = logger.createRecord(msg->get_txn_id(),L_FLUSH,0,0,g_node_id);
+    if(g_repl_cnt > 0) {
+      msg_queue.enqueue(get_thd_id(), Message::create_message(record, LOG_MSG),
+                        g_node_id + g_node_cnt + g_client_node_cnt);
+    }
+    logger.enqueueRecord(record);
+#if CC_ALG == MIXED_LOCK
+  }
+#endif
+#endif
 
 #if CC_ALG == TICTOC
     // Integrate bounds
@@ -1156,7 +1176,12 @@ RC WorkerThread::process_log_flushed(Message * msg) {
   }
 
   txn_man->log_flushed = true;
-  if (g_repl_cnt == 0 || txn_man->repl_finished) commit();
+#if SYNCHRONIZATION
+  if (!txn_man->is_multi_part() || txn_man->get_rsp_cnt() == 0) {
+    txn_man->txn_stats.finish_start_time = get_sys_clock();
+    commit();
+  }
+#endif
   return RCOK;
 }
 
