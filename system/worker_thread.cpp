@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@
 #include "ssi.h"
 #include "focc.h"
 #include "bocc.h"
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 #include "cc_selector.h"
 #endif
 
@@ -104,7 +104,7 @@ void WorkerThread::fakeprocess(Message * msg) {
 			case RTXN:
 #if CC_ALG == CALVIN
         rc = process_calvin_rtxn(msg);
-#elif CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#elif CC_ALG == HDCC || CC_ALG == SNAPPER
         if (msg->algo == CALVIN) {
           rc = process_calvin_rtxn(msg);
         } else {
@@ -203,7 +203,7 @@ void WorkerThread::process(Message * msg) {
 			case RTXN:
 #if CC_ALG == CALVIN
         rc = process_calvin_rtxn(msg);
-#elif CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#elif CC_ALG == HDCC || CC_ALG == SNAPPER
         if (msg->algo == CALVIN) {
           rc = process_calvin_rtxn(msg);
         } else {
@@ -350,7 +350,7 @@ void WorkerThread::abort() {
   INC_STATS(get_thd_id(), trans_abort_count, 1);
   INC_STATS(get_thd_id(), trans_total_count, 1);
   #if WORKLOAD != DA //actually DA do not need real abort. Just count it and do not send real abort msg.
-  #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+  #if CC_ALG == HDCC || CC_ALG == SNAPPER
   uint64_t penalty =
       abort_queue.enqueue(get_thd_id(), txn_man->get_txn_id(), txn_man, txn_man->get_abort_cnt());
   #else
@@ -362,7 +362,7 @@ void WorkerThread::abort() {
 }
 
 TxnManager * WorkerThread::get_transaction_manager(Message * msg) {
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == CALVIN || CC_ALG == HDCC || CC_ALG == SNAPPER
   TxnManager* local_txn_man =
       txn_table.get_transaction_manager(get_thd_id(), msg->get_txn_id(), msg->get_batch_id());
 #else
@@ -441,7 +441,7 @@ RC WorkerThread::run() {
       idle_starttime = 0;
     }
     //uint64_t starttime = get_sys_clock();
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
     if((msg->rtype != CL_QRY && msg->rtype != CL_QRY_O) || msg->algo == CALVIN){
       txn_man = get_transaction_manager(msg);
       txn_man->algo = msg->algo;
@@ -495,7 +495,7 @@ RC WorkerThread::run() {
       }
       txn_man->register_thread(this);
     }
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
     if (msg->rtype == CL_QRY) {
       txn_man = get_transaction_manager(msg);
       txn_man->algo = msg->algo;
@@ -529,13 +529,13 @@ RC WorkerThread::run() {
     // delete message
     ready_starttime = get_sys_clock();
 #if CC_ALG != CALVIN
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
   if (msg->algo == CALVIN) {
   } else {
 #endif
     msg->release();
     delete msg;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
   }
 #endif
 #endif
@@ -570,7 +570,7 @@ RC WorkerThread::process_rfin(Message * msg) {
   //if(!txn_man->query->readonly() || CC_ALG == OCC)
   if (!((FinishMessage*)msg)->readonly || CC_ALG == MAAT || CC_ALG == OCC || CC_ALG == TICTOC ||
        CC_ALG == BOCC || CC_ALG == SSI || CC_ALG == DLI_BASE ||
-       CC_ALG == DLI_OCC || CC_ALG == SILO || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER) {
+       CC_ALG == DLI_OCC || CC_ALG == SILO || CC_ALG == HDCC || CC_ALG == SNAPPER) {
     msg_queue.enqueue(get_thd_id(), Message::create_message(txn_man, RACK_FIN),
                       GET_NODE_ID(msg->get_txn_id()));
   }
@@ -584,7 +584,7 @@ RC WorkerThread::process_req_valid(Message * msg) {
 
   ValidationMessage* message = (ValidationMessage*) msg;
   int responses_left = txn_man->received_response(message->rc);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   if (message->max_calvin_bid > txn_man->max_calvin_bid ||
   (message->max_calvin_bid == txn_man->max_calvin_bid &&
   message->max_calvin_tid % g_node_cnt > txn_man->max_calvin_tid % g_node_cnt) ||
@@ -602,7 +602,7 @@ RC WorkerThread::process_req_valid(Message * msg) {
 
   if(txn_man->get_rc() == RCOK) {
     txn_man->send_validation_messages();
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
     txn_man->txn->rc = txn_man->validate_c();
     rc = WAIT_REM;
 #else
@@ -717,7 +717,7 @@ RC WorkerThread::process_rack_prep(Message * msg) {
   if(txn_man->get_rc() == RCOK) {
     if (CC_ALG == TICTOC)
       rc = RCOK;
-    else if (CC_ALG == MIXED_LOCK) {}
+    else if (CC_ALG == HDCC) {}
     else
       rc = txn_man->validate();
   }
@@ -923,7 +923,7 @@ RC WorkerThread::process_rprepare(Message * msg) {
   DEBUG("RPREP %ld\n",msg->get_txn_id());
     RC rc = RCOK;
 #if LOGGING && LOG_REDO && CC_ALG != CALVIN
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   if (txn_man->algo != CALVIN) {
 #endif
     LogRecord * record = logger.createRecord(msg->get_txn_id(),L_FLUSH,0,0,g_node_id);
@@ -932,7 +932,7 @@ RC WorkerThread::process_rprepare(Message * msg) {
                         g_node_id + g_node_cnt + g_client_node_cnt);
     }
     logger.enqueueRecord(record);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   }
 #endif
 #endif
@@ -948,7 +948,7 @@ RC WorkerThread::process_rprepare(Message * msg) {
     // Validate transaction
     rc  = txn_man->validate();
     txn_man->set_rc(rc);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
     msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,REQ_VALID),msg->return_node_id);
 #else
     msg_queue.enqueue(get_thd_id(),Message::create_message(txn_man,RACK_PREP),msg->return_node_id);
@@ -980,7 +980,7 @@ RC WorkerThread::process_rtxn(Message * msg) {
       msg->txn_id=((DAClientQueryMessage*)msg)->trans_id;
       txn_id=((DAClientQueryMessage*)msg)->trans_id;
     #else
-    #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+    #if CC_ALG == HDCC || CC_ALG == SNAPPER
       if (msg->algo != CALVIN) {
         batch_id = msg->batch_id;
         txn_id = msg->txn_id;
@@ -996,7 +996,7 @@ RC WorkerThread::process_rtxn(Message * msg) {
     if (!txn_man)
     {
       txn_man = txn_table.get_transaction_manager(get_thd_id(),txn_id,batch_id);
-      #if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+      #if CC_ALG == HDCC || CC_ALG == SNAPPER
         txn_man->algo = msg->algo;
       #endif
       txn_man->register_thread(this);
@@ -1188,7 +1188,7 @@ RC WorkerThread::process_log_flushed(Message * msg) {
 RC WorkerThread::process_rfwd(Message * msg) {
   DEBUG("RFWD (%ld,%ld)\n",msg->get_txn_id(),msg->get_batch_id());
   txn_man->txn_stats.remote_wait_time += get_sys_clock() - txn_man->txn_stats.wait_starttime;
-  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
+  assert(CC_ALG == CALVIN || CC_ALG == HDCC || CC_ALG == SNAPPER);
   int responses_left = txn_man->received_response(((ForwardMessage*)msg)->rc);
   assert(responses_left >=0);
   if(txn_man->calvin_collect_phase_done()) {
@@ -1320,8 +1320,8 @@ RC StatsPerIntervalThread::run(){
 
   txn_cnt_last_time = stats.get_txn_cnts();
   for(uint32_t i = 0; i < g_total_thread_cnt; i++){
-    silo_cnt_last_time += stats._stats[i]->mixed_lock_silo_cnt;
-    calvin_cnt_last_time += stats._stats[i]->mixed_lock_calvin_cnt;
+    silo_cnt_last_time += stats._stats[i]->hdcc_silo_cnt;
+    calvin_cnt_last_time += stats._stats[i]->hdcc_calvin_cnt;
   }
   tsetup();
   
@@ -1331,13 +1331,13 @@ RC StatsPerIntervalThread::run(){
       //tput every interval
       txn_cnt_this_time = stats.get_txn_cnts();
       for(uint32_t i = 0; i < g_total_thread_cnt; i++){
-        silo_cnt_this_time += stats._stats[i]->mixed_lock_silo_cnt;
-        calvin_cnt_this_time += stats._stats[i]->mixed_lock_calvin_cnt;
+        silo_cnt_this_time += stats._stats[i]->hdcc_silo_cnt;
+        calvin_cnt_this_time += stats._stats[i]->hdcc_calvin_cnt;
       }
       INC_STATS(_thd_id, tputs[loop], (txn_cnt_this_time - txn_cnt_last_time));
-      INC_STATS(_thd_id, mixed_lock_silo_cnts[loop], silo_cnt_this_time - silo_cnt_last_time);
-      INC_STATS(_thd_id, mixed_lock_calvin_cnts[loop], calvin_cnt_this_time - calvin_cnt_last_time);
-    #if CC_ALG == MIXED_LOCK
+      INC_STATS(_thd_id, hdcc_silo_cnts[loop], silo_cnt_this_time - silo_cnt_last_time);
+      INC_STATS(_thd_id, hdcc_calvin_cnts[loop], calvin_cnt_this_time - calvin_cnt_last_time);
+    #if CC_ALG == HDCC
       INC_STATS(_thd_id, row_conflict_total_cnt[loop], cc_selector.get_total_conflict());
       INC_STATS(_thd_id, row_conflict_highest_cnt[loop], cc_selector.get_highest_conflict());
     #endif

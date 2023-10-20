@@ -1,5 +1,5 @@
 #!/bin/bash
-USERNAME=rhardin
+USERNAME=
 HOSTS="$1"
 NODE_CNT="$3"
 count=0
@@ -12,7 +12,7 @@ for HOSTNAME in ${HOSTS}; do
       SCRIPT="env SCHEMA_PATH=\"$2\" timeout -k 5m 5m ./rundb -nid${count} > results.out"
     echo "${HOSTNAME}: rundb"
   fi
-    ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -l ${USERNAME} ${HOSTNAME}.csail.mit.edu "${SCRIPT}" &
+    ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -l ${USERNAME} ${HOSTNAME}.. "${SCRIPT}" &
     count=`expr $count + 1`
 done
 

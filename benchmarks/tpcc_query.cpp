@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -162,7 +162,8 @@ BaseQuery * TPCCQueryGenerator::gen_payment(uint64_t home_partition) {
 #ifdef NO_REMOTE
   if(x >= 0) {
 #else
-	if(x > g_mpr) {
+	// if(x > g_mpr) {
+  if (x > 0.15) {
 #endif
 		// home warehouse
 		query->c_d_id = query->d_id;
@@ -310,7 +311,7 @@ uint64_t TPCCQuery::get_participants(Workload * wl) {
   return participant_cnt;
 }
 
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 void TPCCQuery::reset(int algo){
   BaseQuery::clear();
   if(algo != CALVIN){

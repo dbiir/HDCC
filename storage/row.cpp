@@ -1,5 +1,5 @@
 /*
-	 Copyright 2016 Massachusetts Institute of Technology
+	 Copyright 2016 
 
 	 Licensed under the Apache License, Version 2.0 (the "License");
 	 you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@
 #include "row_wsi.h"
 #include "row_null.h"
 #include "row_silo.h"
-#include "row_mixed_lock.h"
+#include "row_hdcc.h"
 #include "row_snapper.h"
 #include "mem_alloc.h"
 #include "manager.h"
@@ -72,8 +72,6 @@ void row_t::init_manager(row_t * row) {
 	DEBUG_M("row_t::init_manager alloc \n");
 #if CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == CALVIN
 	manager = (Row_lock *) mem_allocator.align_alloc(sizeof(Row_lock));
-	// lead to tput improvement, this change aims to let tput of original CALVIN catch up with MIXED_LOCK's CALVIN
-	// manager = new Row_lock();
 #elif CC_ALG == TIMESTAMP
 	manager = (Row_ts *) mem_allocator.align_alloc(sizeof(Row_ts));
 #elif CC_ALG == MVCC
@@ -98,12 +96,8 @@ void row_t::init_manager(row_t * row) {
 	manager = (Row_wsi *) mem_allocator.align_alloc(sizeof(Row_wsi));
 #elif CC_ALG == CNULL
 	manager = (Row_null *) mem_allocator.align_alloc(sizeof(Row_null));
-#elif CC_ALG == MIXED_LOCK
-	// 	since insert operation is introduced in TPCC, get_new_row function is continuously invoked during runtime,
-	// 	which overwhelms the part of initialization of row manager
-	//	we find that using new instead of mem_allocator can get rid of this bottle neck to some extent
-	// manager = new Row_mixed_lock();
-	manager = (Row_mixed_lock *) mem_allocator.align_alloc(sizeof(Row_mixed_lock));
+#elif CC_ALG == HDCC
+	manager = (Row_hdcc *) mem_allocator.align_alloc(sizeof(Row_hdcc));
 #elif CC_ALG == SNAPPER
 	manager = (Row_snapper *) mem_allocator.align_alloc(sizeof(Row_snapper));
 #elif CC_ALG == SILO
@@ -217,7 +211,7 @@ void row_t::free_row() {
 
 RC row_t::get_lock(access_t type, TxnManager * txn) {
 	RC rc = RCOK;
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == CALVIN || CC_ALG == HDCC || CC_ALG == SNAPPER
 	lock_t lt = (type == RD || type == SCAN)? LOCK_SH : LOCK_EX;
 	rc = this->manager->lock_get(lt, txn);
 #endif
@@ -497,7 +491,7 @@ RC row_t::get_row(access_t type, TxnManager *txn, Access *access) {
   access->data = txn->cur_row;
   INC_STATS(txn->get_thd_id(), trans_cur_row_copy_time, get_sys_clock() - copy_time);
 	goto end;
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == HDCC
 	if (txn->algo == SILO) {
 		uint64_t init_time = get_sys_clock();
  		DEBUG_M("row_t::get_row SILO alloc \n");
@@ -802,7 +796,7 @@ uint64_t row_t::return_row(RC rc, access_t type, TxnManager *txn, row_t *row) {
     DEBUG_M("row_t::return_row XP free \n");
 	mem_allocator.free(row, sizeof(row_t));
 	return 0;
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == HDCC
 	if (txn->algo == CALVIN) {
 	#if DETERMINISTIC_ABORT_MODE
 		assert (row == NULL || row == this || type == XP);

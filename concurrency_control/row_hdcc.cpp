@@ -1,13 +1,13 @@
 #include "txn.h"
 #include "row.h"
-#include "row_mixed_lock.h"
+#include "row_hdcc.h"
 #include "mem_alloc.h"
 #include "cc_selector.h"
 #include "tpcc_query.h"
 
-#if CC_ALG==MIXED_LOCK
+#if CC_ALG==HDCC
 
-void Row_mixed_lock::init(row_t * row) {
+void Row_hdcc::init(row_t * row) {
     _row = row;
     _latch = (pthread_mutex_t *) mem_allocator.alloc(sizeof(pthread_mutex_t));
     pthread_mutex_init( _latch, NULL );
@@ -28,27 +28,27 @@ void Row_mixed_lock::init(row_t * row) {
 }
 
 // lock_get
-RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn) {
+RC Row_hdcc::lock_get(lock_t type, TxnManager *txn) {
   uint64_t *txnids = NULL;
   int txncnt = 0;
   return lock_get(type, txn, txnids, txncnt);
 }
 
-void Row_mixed_lock::return_entry(LockEntry *entry) {
+void Row_hdcc::return_entry(LockEntry *entry) {
   // DEBUG_M("row_lock::return_entry free %lx\n",(uint64_t)entry);
   mem_allocator.free(entry, sizeof(LockEntry));
 }
 
-bool Row_mixed_lock::conflict_lock(lock_t l1, lock_t l2) {
+bool Row_hdcc::conflict_lock(lock_t l1, lock_t l2) {
   if (l1 == LOCK_NONE || l2 == LOCK_NONE)
     return false;
-  else if (l1 == LOCK_EX || l2 == LOCK_EX)  //有任意写锁均不相容
+  else if (l1 == LOCK_EX || l2 == LOCK_EX)  // exclusive lock
     return true;
   else
     return false;
 }
 #if EXTREME_MODE
-bool Row_mixed_lock::conflict_lock_extreme_mode(lock_t l1, lock_t l2, TxnManager *txn) {
+bool Row_hdcc::conflict_lock_extreme_mode(lock_t l1, lock_t l2, TxnManager *txn) {
   if(txn->algo == CALVIN){
     return conflict_lock(l1, l2);
   }
@@ -69,7 +69,7 @@ bool Row_mixed_lock::conflict_lock_extreme_mode(lock_t l1, lock_t l2, TxnManager
 }
 #endif
 
-LockEntry *Row_mixed_lock::get_entry() {
+LockEntry *Row_hdcc::get_entry() {
   LockEntry *entry = (LockEntry *)mem_allocator.alloc(sizeof(LockEntry));
   entry->type = LOCK_NONE;
   entry->txn = NULL;
@@ -77,8 +77,8 @@ LockEntry *Row_mixed_lock::get_entry() {
   return entry;
 }
 
-// Calvin和Silo共用锁机制
-RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int &txncnt) {
+// lock sharing mechanism for calvin and silo
+RC Row_hdcc::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int &txncnt) {
   RC rc;
   uint64_t starttime = get_sys_clock();
   uint64_t lock_get_start_time = starttime;  
@@ -89,7 +89,7 @@ RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int
 
   INC_STATS(txn->get_thd_id(), trans_access_lock_wait_time, get_sys_clock() - lock_get_start_time);
 
-  // 冲突判断
+  // conflict check
 #if EXTREME_MODE
   bool conflict = conflict_lock_extreme_mode(lock_type, type, txn);
 #else
@@ -99,7 +99,7 @@ RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int
     if (waiters_head) conflict = true;   
   }
 
-  // 冲突处理
+  // conflict handle
   if (conflict) {
     DEBUG("lk_wait (%ld,%ld): owners %d, own type %d, req type %d, key %ld %lx\n",
           txn->get_txn_id(), txn->get_batch_id(), owner_cnt, lock_type, type,
@@ -114,7 +114,7 @@ RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int
       LIST_PUT_TAIL(waiters_head, waiters_tail, entry); // waiters++
       waiter_cnt++;
 
-      // ready状态从true转换为false
+      // set ready from true to false
       ATOM_CAS(txn->lock_ready, true, false);
       txn->incr_lr();
       rc = WAIT;
@@ -126,7 +126,7 @@ RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int
       cc_selector.update_conflict_stats(_row);
     #endif
     } else if (txn->algo == SILO) {  // silo
-      //出现冲突就回滚
+      // for silo, if conflict happens, rollback immediately
       rc = Abort;
       DEBUG("abort %ld, %ld %lx\n", txn->get_txn_id(), _row->get_primary_key(), (uint64_t)_row);
       goto final;
@@ -147,14 +147,14 @@ RC Row_mixed_lock::lock_get(lock_t type, TxnManager *txn, uint64_t *&txnids, int
     if (lock_type == LOCK_NONE) {
       own_starttime = get_sys_clock();
     }
-    lock_type = type; // 类型为写锁以后是加不上锁的
+    lock_type = type; // if type == LOCK_EX, it is exclusively owned
     rc = RCOK;
   }
 
 final:
   uint64_t curr_time = get_sys_clock();
   uint64_t timespan = curr_time - starttime;
-  if (rc == WAIT && txn->twopl_wait_start == 0) {  // twopl_wait_start后面要用来计算cc_block_time
+  if (rc == WAIT && txn->twopl_wait_start == 0) {  // use twopl_wait_start to compute cc_block_time
     txn->twopl_wait_start = curr_time;
   }
   txn->txn_stats.cc_time += timespan;
@@ -165,7 +165,7 @@ final:
   return rc;
 }
 
-RC Row_mixed_lock::lock_release(TxnManager *txn) {
+RC Row_hdcc::lock_release(TxnManager *txn) {
   if (txn->algo == CALVIN && txn->isRecon()) {
     return RCOK;
   }
@@ -182,7 +182,7 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
    // Try to find the entry in the owners
   LockEntry *en = owners;
   LockEntry *prev = NULL;
-  while (en != NULL && en->txn != txn) {  // en=null走到栈底
+  while (en != NULL && en->txn != txn) {
     prev = en;
     en = en->next;
   }
@@ -198,10 +198,10 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
       lock_type = LOCK_NONE;
     }
 
-  } else {  // en = null 走到栈底 
+  } else {  // en = null 
     assert(false);
     en = waiters_head;
-    while (en != NULL && en->txn != txn) en = en->next; //找到当前txn的waiter
+    while (en != NULL && en->txn != txn) en = en->next;
     ASSERT(en);
 
     LIST_REMOVE(en);  // remove en->txn == txn entry
@@ -215,9 +215,9 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
 
   LockEntry *entry;
 
-  // 不冲突的waiter加入owners
+  // add waiters with non-conflict lock request to owners
   while (waiters_head && !conflict_lock(lock_type, waiters_head->type)) {
-    LIST_GET_HEAD(waiters_head, waiters_tail, entry);  // 取到entry, 删除waiters_head
+    LIST_GET_HEAD(waiters_head, waiters_tail, entry);  // get entry, remove waiters_head
     uint64_t timespan = get_sys_clock() - entry->txn->twopl_wait_start;
     entry->txn->twopl_wait_start = 0;
     if(txn->algo != CALVIN) {
@@ -225,7 +225,7 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
       entry->txn->txn_stats.cc_block_time_short += timespan;
     }
 
-    STACK_PUSH(owners, entry);  // 放入owners前部
+    STACK_PUSH(owners, entry);  // push into owners
 
     owner_cnt++;
     waiter_cnt--;
@@ -248,7 +248,7 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
     lock_type = entry->type;
   }
 
-  //并发时间统计
+  // concurrency time stats
   uint64_t timespan = get_sys_clock() - starttime;
   txn->txn_stats.cc_time += timespan;
   txn->txn_stats.cc_time_short += timespan;
@@ -258,9 +258,9 @@ RC Row_mixed_lock::lock_release(TxnManager *txn) {
   return RCOK;
 }
 
-// silo的验证
+// silo validation
 // #if EXTREME_MODE
-bool Row_mixed_lock::validate(Access *access, bool in_write_set, unordered_set<uint64_t> &waitFor, bool &benefited) {
+bool Row_hdcc::validate(Access *access, bool in_write_set, unordered_set<uint64_t> &waitFor, bool &benefited) {
   ts_t tid_at_read = access->tid;
   bool readIntermediateState = access->isIntermediateState;
 
@@ -309,22 +309,22 @@ bool Row_mixed_lock::validate(Access *access, bool in_write_set, unordered_set<u
   return true;
 }
 // #else
-bool Row_mixed_lock::validate(Access *access, bool in_write_set) {
+bool Row_hdcc::validate(Access *access, bool in_write_set) {
   ts_t tid_at_read = access->tid;
   bool readIntermediateState = access->isIntermediateState;
   if (in_write_set)
-      // 写验证
+      // write validation
         return tid_at_read == _tid;
 
-  //读验证
+  // read validation
   pthread_mutex_lock(_latch);
   if (lock_type == LOCK_EX) {
     pthread_mutex_unlock(_latch);
-    return false;  // 已加写锁
+    return false;  // current lock is LOCK_EX
   }
   pthread_mutex_unlock(_latch);
 
-  bool valid = (tid_at_read == _tid && !readIntermediateState);  // 时间戳校对，是否数据被修改过导致版本变化
+  bool valid = (tid_at_read == _tid && !readIntermediateState);  // timestamp check, whether data has been modified
   return valid;
 }
 // #endif

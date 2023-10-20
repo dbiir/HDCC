@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -61,6 +61,9 @@ public:
 #endif
   TxnManager* get_transaction_manager(uint64_t thd_id, uint64_t txn_id,uint64_t batch_id);
   void dump();
+#if CC_ALG == HDCC
+  bool checkDependencies(uint64_t txn_id);
+#endif
 #if CC_ALG == SNAPPER
   void snapper_check();
 #endif

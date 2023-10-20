@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -173,7 +173,7 @@ UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt 
 #elif CC_ALG == SNAPPER
 // sequencer + scheduler thread + snapper_check_thread
 UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + g_logger_thread_cnt + 4;
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == HDCC
 UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + g_logger_thread_cnt + 4;
 #else
 UInt32 g_total_thread_cnt = g_thread_cnt + g_rem_thread_cnt + g_send_thread_cnt + g_abort_thread_cnt + g_stats_per_interval_thread_cnt + g_logger_thread_cnt + 1;
@@ -221,7 +221,7 @@ UInt64 g_his_recycle_len = HIS_RECYCLE_LEN;
 // CALVIN
 UInt32 g_seq_thread_cnt = SEQ_THREAD_CNT;
 
-// MIXED_LOCK
+// HDCC
 UInt32 g_calvin_thread_cnt = CALVIN_THREAD_CNT;
 UInt64 g_data_shard_size = SHARD_SIZE;
 UInt64 g_lower_bound=LOWER_BOUND;

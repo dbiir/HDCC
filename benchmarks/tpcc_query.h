@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ class TPCCQuery : public BaseQuery {
 public:
 	void init(uint64_t thd_id, Workload * h_wl);
   void init();
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
   void reset(int algo);
 #else
   void reset();

@@ -3,7 +3,6 @@ from numpy import *
 import sys
 
 from pylab import *
-#mpl.rcParams['font.sans-serif'] = ['KaiTi']
 
 f = open(sys.argv[1])
 x = f.readline().split()

@@ -1,5 +1,5 @@
 /*
-	 Copyright 2016 Massachusetts Institute of Technology
+	 Copyright 2016 
 
 	 Licensed under the Apache License, Version 2.0 (the "License");
 	 you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ RC CalvinLockThread::run() {
 		assert(msg->get_txn_id() != UINT64_MAX);
 		txn_man =
 				txn_table.get_transaction_manager(get_thd_id(), msg->get_txn_id(), msg->get_batch_id());
-#if CC_ALG != MIXED_LOCK
+#if CC_ALG != HDCC
 		assert(msg->get_rtype() == CL_QRY || msg->get_rtype() == CL_QRY_O);
 		
 #else
@@ -116,7 +116,7 @@ RC CalvinLockThread::run() {
 	TxnManager * txn_man;
 	uint64_t prof_starttime = get_sys_clock();
 	uint64_t idle_starttime = 0;
-	uint64_t last_batch_id = 0;
+	// uint64_t last_batch_id = 0;
 	unordered_map<row_t *, vector<pair<TxnManager *, access_t>>> read_write_sets;
 
 	while(!simulation->is_done()) {
@@ -183,7 +183,7 @@ RC CalvinLockThread::run() {
 				row->enter_critical_section();
 				for (auto j = vector.begin(); j != vector.end(); j++) {
 					TxnManager * txn = j->first;
-					RC rc = txn->acquire_lock(row, j->second);
+					rc = txn->acquire_lock(row, j->second);
 					if (rc == RCOK) {
 						Message* msg = Message::create_message(txn,RTXN);
         				msg->algo = CALVIN;
@@ -249,7 +249,7 @@ RC CalvinSequencerThread::run() {
 		switch (rtype) {
 			case CL_QRY:
 			case CL_QRY_O:
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 			case RTXN:
 #endif
 				// Query from client

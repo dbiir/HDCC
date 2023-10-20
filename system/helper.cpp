@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ uint64_t get_part_id(void *addr) { return ((uint64_t)addr / PAGE_SIZE) % g_part_
 
 uint64_t key_to_part(uint64_t key) {
 	return key % g_part_cnt;
-	// this function is called by mixed_lock.cpp only, another referene is actualy impossible
+	// this function is called by hdcc.cpp only, another referene is actualy impossible
 	// use above statment instead of below statements is acceptable for our aim
 	// if (g_part_alloc)
 	// 	return key % g_part_cnt;

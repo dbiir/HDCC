@@ -1,14 +1,14 @@
-#ifndef ROW_MIXED_LOCK
-#define ROW_MIXED_LOCK
+#ifndef ROW_HDCC
+#define ROW_HDCC
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 
 #include "row_lock.h"
 // #if EXTREME_MODE
 #include <unordered_set>
 // #endif
 
-class Row_mixed_lock {
+class Row_hdcc {
 public:
     ts_t _tid;
     int isIntermediateState;

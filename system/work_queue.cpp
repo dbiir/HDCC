@@ -1,5 +1,5 @@
 /*
-	 Copyright 2016 Massachusetts Institute of Technology
+	 Copyright 2016 
 
 	 Licensed under the Apache License, Version 2.0 (the "License");
 	 you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ void QWorkQueue::init() {
 	work_dequeue_size = 0;
 	txn_enqueue_size = 0;
 	txn_dequeue_size = 0;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 	calvin_txn_queue = new boost::lockfree::queue<work_queue_entry* >(0);
 	calvin_work_queue = new boost::lockfree::queue<work_queue_entry* >(0);
 	calvin_txn_queue_size = 0;
@@ -109,7 +109,7 @@ Message * QWorkQueue::sequencer_dequeue(uint64_t thd_id) {
 }
 
 void QWorkQueue::sched_enqueue(uint64_t thd_id, Message * msg) {
-	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
+	assert(CC_ALG == CALVIN || CC_ALG == HDCC || CC_ALG == SNAPPER);
 	assert(msg);
 	assert(ISSERVERN(msg->return_node_id));
 	uint64_t starttime = get_sys_clock();
@@ -135,7 +135,7 @@ void QWorkQueue::sched_enqueue(uint64_t thd_id, Message * msg) {
 Message * QWorkQueue::sched_dequeue(uint64_t thd_id) {
 	uint64_t starttime = get_sys_clock();
 
-	assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
+	assert(CC_ALG == CALVIN || CC_ALG == HDCC || CC_ALG == SNAPPER);
 	Message * msg = NULL;
 	work_queue_entry * entry = NULL;
 
@@ -401,7 +401,7 @@ Message * QWorkQueue::queuetop(uint64_t thd_id)
 
 #else
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 void QWorkQueue::calvin_enqueue(uint64_t thd_id,Message * msg, bool busy) {
 	uint64_t starttime = get_sys_clock();
 	assert(msg);

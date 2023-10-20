@@ -5,7 +5,7 @@
 #include "msg_queue.h"
 #include "query.h"
 #include "row.h"
-#include "row_mixed_lock.h"
+#include "row_hdcc.h"
 #include "row_mvcc.h"
 #include "row_ts.h"
 #include "thread.h"
@@ -18,23 +18,23 @@
 #include "sequencer.h"
 #include <unordered_set>
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 // txn->algo == silo
-// silo验证
+// silo validation
 RC TxnManager::validate_once() {
   RC rc = RCOK;
   uint64_t wr_cnt = txn->write_cnt;
   int cur_wr_idx = 0;
   int read_set[txn->row_cnt - txn->write_cnt];
   int cur_rd_idx = 0;
-  for (uint64_t rid = 0; rid < txn->row_cnt; rid++) {  //读写集标记
+  for (uint64_t rid = 0; rid < txn->row_cnt; rid++) {  // mark read write set
     if (txn->accesses[rid]->type == WR)
       write_set[cur_wr_idx++] = rid;
     else
       read_set[cur_rd_idx++] = rid;
   }
 
-  // 对写集中的数据进行排序(primary key)，防止给写数据加锁时出现死锁
+  // sort write set in primary key order in case of deadlock
   // TODO:
   	if (wr_cnt > 1)
 	{
@@ -56,7 +56,7 @@ RC TxnManager::validate_once() {
   if (_pre_abort) {
     for (uint64_t i = 0; i < wr_cnt; i++) {  // pre_abort
       row_t* row = txn->accesses[write_set[i]]->orig_row;
-      if (row->manager->_tid != txn->accesses[write_set[i]]->tid) {   //版本应该为当前事务id
+      if (row->manager->_tid != txn->accesses[write_set[i]]->tid) {   // row version should maintain same
         rc = Abort;
         return rc;
       }
@@ -71,22 +71,23 @@ RC TxnManager::validate_once() {
   }
 
   // lock all rows in the write set.
-  //对写集中的数据加锁
   while (!done) {
     num_locks = 0;
     for (uint64_t i = 0; i < wr_cnt; i++) {
       row_t* row = txn->accesses[write_set[i]]->orig_row;
-      if (row->manager->lock_get(LOCK_EX, this) == Abort)  //失败（calvin读写锁、silo写锁），回滚；成功，在此处加锁
+      // fail when there is calvin txn holding LOCK_EX or LOCK_SH lock on it,
+      // or there is occ txn holding LOCK_EX on it, then abort, otherwise lock is got successfully
+      if (row->manager->lock_get(LOCK_EX, this) == Abort)
       {
         break;
       }
       DEBUG("silo %ld write lock row %ld \n", this->get_txn_id(), row->get_primary_key());
       num_locks++;
     }
-    if (num_locks == wr_cnt) {  //所有写集数据加锁成功
+    if (num_locks == wr_cnt) {  // all row in write set is locked successfully
       DEBUG("TRY LOCK true %ld\n", get_txn_id());
       done = true;
-    } else {  //中途加锁失败，回滚
+    } else {  // lock failed, abort
       // If silo fail to lock one row, we cannot know if the other rows are locked or not, so we count all rows as conflict.
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
         row_t* row = txn->accesses[i]->orig_row;
@@ -110,16 +111,15 @@ RC TxnManager::validate_once() {
   bool benefited = false;
 #endif
   // validate rows in the read set
+  // check whether rows in read set has been modified or locked
   // for repeatable_read, no need to validate the read set.
-  // 检查读集的wts信息是否发生过变化/读集中数据是否被其他事务加锁->读写冲突
 
-  //读验证时检测到calvin的写锁，回滚；版本变化，回滚；
   for (uint64_t i = 0; i < txn->row_cnt - wr_cnt; i++) {
     Access* access = txn->accesses[read_set[i]];
 #if EXTREME_MODE
     bool success = access->orig_row->manager->validate(access, false, waitFor, benefited);
 #else
-    bool success = access->orig_row->manager->validate(access, false);  //当前行上有写锁/版本变化
+    bool success = access->orig_row->manager->validate(access, false);  
 #endif
     if (!success) {
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
@@ -138,13 +138,12 @@ RC TxnManager::validate_once() {
   }
 
   // validate rows in the write set
-  // 写验证
   for (uint64_t i = 0; i < wr_cnt; i++) {
     Access* access = txn->accesses[write_set[i]];
 #if EXTREME_MODE
     bool success = access->orig_row->manager->validate(access, true, waitFor, benefited);
 #else
-    bool success = access->orig_row->manager->validate(access, true);  //时间戳版本正确即可
+    bool success = access->orig_row->manager->validate(access, true);  // version remains same is enough
 #endif
     if (!success) {
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
@@ -193,14 +192,13 @@ RC TxnManager::validate_lock() {
   int cur_wr_idx = 0;
   int read_set[txn->row_cnt - txn->write_cnt];
   int cur_rd_idx = 0;
-  for (uint64_t rid = 0; rid < txn->row_cnt; rid++) {  //读写集标记
+  for (uint64_t rid = 0; rid < txn->row_cnt; rid++) {  // mark read write set
     if (txn->accesses[rid]->type == WR)
       write_set[cur_wr_idx++] = rid;
     else
       read_set[cur_rd_idx++] = rid;
   }
 
-  // 对写集中的数据进行排序(primary key)，防止给写数据加锁时出现死锁
   // TODO:
   	if (wr_cnt > 1)
 	{
@@ -222,7 +220,7 @@ RC TxnManager::validate_lock() {
   if (_pre_abort) {
     for (uint64_t i = 0; i < wr_cnt; i++) {  // pre_abort
       row_t* row = txn->accesses[write_set[i]]->orig_row;
-      if (row->manager->_tid != txn->accesses[write_set[i]]->tid) {   //版本应该为当前事务id
+      if (row->manager->_tid != txn->accesses[write_set[i]]->tid) {  
         rc = Abort;
         return rc;
       }
@@ -237,12 +235,11 @@ RC TxnManager::validate_lock() {
   }
 
   // lock all rows in the write set.
-  //对写集中的数据加锁
   while (!done) {
     num_locks = 0;
     for (uint64_t i = 0; i < wr_cnt; i++) {
       row_t* row = txn->accesses[write_set[i]]->orig_row;
-      if (row->manager->lock_get(LOCK_EX, this) == Abort)  //失败（calvin读写锁、silo写锁），回滚；成功，在此处加锁
+      if (row->manager->lock_get(LOCK_EX, this) == Abort)  
       {
         break;
       }
@@ -259,10 +256,10 @@ RC TxnManager::validate_lock() {
         max_calvin_bid = row->manager->max_calvin_read_bid;
       }
     }
-    if (num_locks == wr_cnt) {  //所有写集数据加锁成功
+    if (num_locks == wr_cnt) {  
       DEBUG("TRY LOCK true %ld\n", get_txn_id());
       done = true;
-    } else {  //中途加锁失败，回滚
+    } else {  
       // If silo fail to lock one row, we cannot know if the other rows are locked or not, so we count all rows as conflict.
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
         row_t* row = txn->accesses[i]->orig_row;
@@ -286,7 +283,7 @@ RC TxnManager::validate_cont() {
   uint64_t wr_cnt = txn->write_cnt;
   int read_set[txn->row_cnt - txn->write_cnt];
   int cur_rd_idx = 0;
-  for (uint64_t rid = 0; rid < txn->row_cnt; rid++) {  //读写集标记
+  for (uint64_t rid = 0; rid < txn->row_cnt; rid++) {  
     if (txn->accesses[rid]->type == RD) {
       read_set[cur_rd_idx++] = rid;
     }
@@ -298,15 +295,13 @@ RC TxnManager::validate_cont() {
 // #endif
   // validate rows in the read set
   // for repeatable_read, no need to validate the read set.
-  // 检查读集的wts信息是否发生过变化/读集中数据是否被其他事务加锁->读写冲突
 
-  //读验证时检测到calvin的写锁，回滚；版本变化，回滚；
   for (uint64_t i = 0; i < txn->row_cnt - wr_cnt; i++) {
     Access* access = txn->accesses[read_set[i]];
 // #if EXTREME_MODE
 //     bool success = access->orig_row->manager->validate(access, false, waitFor, benefited);
 // #else
-    bool success = access->orig_row->manager->validate(access, false);  //当前行上有写锁/版本变化
+    bool success = access->orig_row->manager->validate(access, false);  
 // #endif
     if (!success) {
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
@@ -325,13 +320,12 @@ RC TxnManager::validate_cont() {
   }
 
   // validate rows in the write set
-  // 写验证
   for (uint64_t i = 0; i < wr_cnt; i++) {
     Access* access = txn->accesses[write_set[i]];
 // #if EXTREME_MODE
 //     bool success = access->orig_row->manager->validate(access, true, waitFor, benefited);
 // #else
-    bool success = access->orig_row->manager->validate(access, true);  //时间戳版本正确即可
+    bool success = access->orig_row->manager->validate(access, true); 
 // #endif
     if (!success) {
       for (uint64_t i = 0; i < txn->row_cnt; i++) {
@@ -372,7 +366,7 @@ RC TxnManager::validate_cont() {
 //   }
 // #endif
 
-  //依赖验证
+  // dependency check
   if (!seq_man.checkDependency(max_calvin_bid, max_calvin_tid)) {
     rc = Abort;
     return Abort;
@@ -380,7 +374,7 @@ RC TxnManager::validate_cont() {
   return rc;
 }
 
-// silo 执行
+// silo finish process
 RC TxnManager::finish(RC rc) {
   if (rc == Abort) {
     for (uint64_t i = 0; i < this->num_locks; i++) {  
@@ -388,13 +382,13 @@ RC TxnManager::finish(RC rc) {
       DEBUG("silo %ld abort release row %ld \n", this->get_txn_id(),
             txn->accesses[write_set[i]]->orig_row->get_primary_key());
     }
-  } else {  //写入
+  } else {  // write data to physical rows
     for (uint64_t i = 0; i < txn->write_cnt; i++) {
       Access* access = txn->accesses[write_set[i]];
       row_t* row = access->orig_row;
-      row->copy(access->data);                                           //写入数据
-      row->manager->_tid = get_txn_id();                                      //更新时间戳(事务号)
-      txn->accesses[write_set[i]]->orig_row->manager->lock_release(this);  //释放锁
+      row->copy(access->data);                                           // write data
+      row->manager->_tid = get_txn_id();                                      // update timestamp (txn id)
+      txn->accesses[write_set[i]]->orig_row->manager->lock_release(this);  // release locks
       DEBUG("silo %ld commit release row %ld \n", this->get_txn_id(),
             txn->accesses[write_set[i]]->orig_row->get_primary_key());
     }

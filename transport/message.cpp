@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -211,7 +211,7 @@ Message * Message::create_message(RemReqType rtype) {
   msg->rtype = rtype;
   msg->txn_id = UINT64_MAX;
   msg->batch_id = UINT64_MAX;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
   msg->algo = 0;
 #endif
   msg->return_node_id = g_node_id;
@@ -238,7 +238,7 @@ uint64_t Message::mget_size() {
 #if CC_ALG == CALVIN
   size += sizeof(uint64_t);
 #endif
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   size += sizeof(uint64_t);
   size += sizeof(uint64_t);
   size += sizeof(int);
@@ -260,7 +260,7 @@ void Message::mcopy_from_txn(TxnManager * txn) {
   txn_id = txn->get_txn_id();
 #if CC_ALG == CALVIN
   batch_id = txn->get_batch_id();
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == HDCC
   batch_id = txn->get_batch_id();
   original_return_node_id = txn->original_return_id;
   algo = txn->algo;
@@ -272,7 +272,7 @@ void Message::mcopy_from_txn(TxnManager * txn) {
 
 void Message::mcopy_to_txn(TxnManager* txn) {
   txn->return_id = return_node_id;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   txn->original_return_id = original_return_node_id;
 #endif
 }
@@ -283,7 +283,7 @@ void Message::mcopy_from_buf(char * buf) {
   COPY_VAL(txn_id,buf,ptr);
 #if CC_ALG == CALVIN
   COPY_VAL(batch_id,buf,ptr);
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == HDCC
   COPY_VAL(batch_id,buf,ptr);
   COPY_VAL(original_return_node_id,buf,ptr);
   COPY_VAL(algo,buf,ptr);
@@ -315,7 +315,7 @@ void Message::mcopy_to_buf(char * buf) {
   COPY_BUF(buf,txn_id,ptr);
 #if CC_ALG == CALVIN
   COPY_BUF(buf,batch_id,ptr);
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == HDCC
   COPY_BUF(buf,batch_id,ptr);
   COPY_BUF(buf,original_return_node_id,ptr);
   COPY_BUF(buf,algo,ptr);
@@ -488,7 +488,7 @@ void QueryMessage::copy_from_txn(TxnManager * txn) {
     CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3 || CC_ALG == DLI_MVCC
   start_ts = txn->get_start_timestamp();
 #endif
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
   algo = txn->algo;
   isDeterministicAbort = txn->query->isDeterministicAbort;
 #endif
@@ -505,7 +505,7 @@ void QueryMessage::copy_to_txn(TxnManager * txn) {
     CC_ALG == DLI_DTA || CC_ALG == DLI_DTA2 || CC_ALG == DLI_DTA3 || CC_ALG == DLI_MVCC
   txn->set_start_timestamp(start_ts);
 #endif
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
   txn->algo = algo;
   txn->query->isDeterministicAbort = isDeterministicAbort;
 #endif
@@ -1239,7 +1239,7 @@ void PrepareMessage::copy_to_buf(char * buf) {
 uint64_t ValidationMessage::get_size() {
   uint64_t size = Message::mget_size();
   size += sizeof(RC);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   size += sizeof(uint64_t);
   size += sizeof(uint64_t);
 #endif
@@ -1249,7 +1249,7 @@ uint64_t ValidationMessage::get_size() {
 void ValidationMessage::copy_from_txn(TxnManager * txn) {
   Message::mcopy_from_txn(txn);
   rc = txn->get_rc();
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   max_calvin_tid = txn->max_calvin_tid;
   max_calvin_bid = txn->max_calvin_bid;
 #endif
@@ -1261,7 +1261,7 @@ void ValidationMessage::copy_from_buf(char * buf) {
   Message::mcopy_from_buf(buf);
   uint64_t ptr = Message::mget_size();
   COPY_VAL(rc,buf,ptr);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   COPY_VAL(max_calvin_tid,buf,ptr);
   COPY_VAL(max_calvin_bid,buf,ptr);
 #endif
@@ -1272,7 +1272,7 @@ void ValidationMessage::copy_to_buf(char * buf) {
   Message::mcopy_to_buf(buf);
   uint64_t ptr = Message::mget_size();
   COPY_BUF(buf,rc,ptr);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   COPY_BUF(buf,max_calvin_tid,ptr);
   COPY_BUF(buf,max_calvin_bid,ptr);
 #endif
@@ -1290,7 +1290,7 @@ uint64_t AckMessage::get_size() {
 #if CC_ALG == SILO
   size += sizeof(uint64_t);
 #endif
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   size += sizeof(bool);
 #endif
 #if WORKLOAD == PPS && CC_ALG == CALVIN
@@ -1332,7 +1332,7 @@ void AckMessage::copy_from_txn(TxnManager * txn) {
   lower = dta_time_table.get_lower(txn->get_thd_id(), txn->get_txn_id());
   upper = dta_time_table.get_upper(txn->get_thd_id(), txn->get_txn_id());
 #endif
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   isCommit = !txn->aborted;
 #endif
 #if CC_ALG == SNAPPER
@@ -1373,7 +1373,7 @@ void AckMessage::copy_from_buf(char * buf) {
 #if CC_ALG == SILO
   COPY_VAL(max_tid,buf,ptr);
 #endif
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   COPY_VAL(isCommit,buf,ptr);
 #endif
 #if CC_ALG == SNAPPER
@@ -1416,7 +1416,7 @@ void AckMessage::copy_to_buf(char * buf) {
 #if CC_ALG == SILO
   COPY_BUF(buf,max_tid,ptr);
 #endif
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   COPY_BUF(buf,isCommit,ptr);
 #endif
 #if CC_ALG == SNAPPER

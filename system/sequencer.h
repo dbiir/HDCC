@@ -1,5 +1,5 @@
 /*
-	 Copyright 2016 Massachusetts Institute of Technology
+	 Copyright 2016 
 
 	 Licensed under the Apache License, Version 2.0 (the "License");
 	 you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ typedef struct qlite_ll_entry {
 	uint64_t batch_send_time;
 	qlite_ll_entry * next;
 	qlite_ll_entry * prev;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 	uint64_t start_txn_id;
 #endif
 } qlite_ll;
@@ -60,7 +60,7 @@ class Sequencer {
 									 uint64_t wait_time, uint32_t abort_cnt);
 	void process_abort(Message *msg, uint64_t thd_id);
 	void send_next_batch(uint64_t thd_id);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 	bool checkDependency(uint64_t batch_id, uint64_t txn_id);
 #endif
 
@@ -83,7 +83,7 @@ class Sequencer {
 	qlite_ll * wl_tail;		// list of txns in batch being executed
 	volatile uint32_t next_txn_id;
 	Workload * _wl;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 	uint64_t last_epoch_max_id;
 	bool blocked;
 	uint64_t validationCount;

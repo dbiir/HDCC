@@ -39,7 +39,7 @@ LogRecord* Logger::createRecord(uint64_t txn_id, LogIUD iud, uint64_t table_id, 
   return record;
 }
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 LogRecord* Logger::createRecord(uint64_t txn_id, LogIUD iud, uint64_t table_id, uint64_t key,
                                 uint64_t max_calvin_tid) {
   LogRecord * record = (LogRecord*)mem_allocator.alloc(sizeof(LogRecord));

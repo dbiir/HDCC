@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -284,7 +284,7 @@ extern ofstream abort_file;
 // CALVIN
 extern UInt32 g_seq_thread_cnt;
 
-//MIXED_LOCK
+//HDCC
 extern UInt32 g_calvin_thread_cnt; // number of calvin threads in the thread pool
 extern UInt64 g_data_shard_size; // number of tuples in each data shard
 extern UInt64 g_lower_bound;

@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -171,6 +171,25 @@ TxnManager * TxnTable::get_transaction_manager(uint64_t thd_id, uint64_t txn_id,
   return txn_man;
 }
 
+#if CC_ALG == HDCC
+bool TxnTable::checkDependencies(uint64_t max_calvin_tid) {
+  for (uint64_t i = 0; i < pool_size; ++i) {
+    while (!ATOM_CAS(pool[i]->modify, false, true)){}
+    auto cur = pool[i]->head;
+    while(cur) {
+      auto txn_man = cur->txn_man;
+      if (txn_man->get_txn_id() < max_calvin_tid && txn_man->algo == CALVIN) {
+        ATOM_CAS(pool[i]->modify, true, false);
+        return false;
+      }
+      cur = cur->next;
+    }
+    ATOM_CAS(pool[i]->modify, true, false);
+  }
+  return true;
+}
+#endif
+
 #if CC_ALG == SNAPPER
 void TxnTable::snapper_check(){
   for(uint64_t i = 0; i < pool_size; ++i){
@@ -211,14 +230,14 @@ void TxnTable::restart_txn(uint64_t thd_id, uint64_t txn_id,uint64_t batch_id){
     if(is_matching_txn_node(t_node,txn_id,batch_id)) {
 #if CC_ALG == CALVIN
       work_queue.enqueue(thd_id,Message::create_message(t_node->txn_man,RTXN),false);
-#elif CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#elif CC_ALG == HDCC || CC_ALG == SNAPPER
       if (t_node->txn_man->algo == CALVIN) {
         // work_queue.calvin_enqueue(thd_id, Message::create_message(t_node->txn_man, RTXN), false);
         Message* msg = Message::create_message(t_node->txn_man,RTXN);
         msg->algo = CALVIN;
         work_queue.enqueue(thd_id, msg,false);
       } else {
-        // mixed_lock cc should not pass here with silo
+        // HDCC should not pass here with silo
         assert(t_node->txn_man->algo != SILO);
         if(IS_LOCAL(txn_id))
           work_queue.enqueue(thd_id,Message::create_message(t_node->txn_man,RTXN_CONT),false);

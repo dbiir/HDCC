@@ -1,8 +1,8 @@
 import os,glob
 
-user="rhardin"
-machine = "schroedinger.csail.mit.edu"
-project_dir = "/data1/rhardin/research/ddbms/distDBX/"
+user=""
+machine = ""
+project_dir = ""
 
 PATH=os.getcwd()
 result_dir = PATH + "/results/"

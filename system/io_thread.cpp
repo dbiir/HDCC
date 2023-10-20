@@ -1,5 +1,5 @@
 /*
-	 Copyright 2016 Massachusetts Institute of Technology
+	 Copyright 2016 
 
 	 Licensed under the Apache License, Version 2.0 (the "License");
 	 you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ void InputThread::setup() {
 			} else {
 				assert(ISSERVER || ISREPLICA);
 				//printf("Received Msg %d from node %ld\n",msg->rtype,msg->return_node_id);
-#if CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == CALVIN || CC_ALG == HDCC || CC_ALG == SNAPPER
 			if(msg->rtype == CALVIN_ACK ||(msg->rtype == CL_QRY && ISCLIENTN(msg->get_return_id())) ||
 				(msg->rtype == CL_QRY_O && ISCLIENTN(msg->get_return_id()))) {
 				work_queue.sequencer_enqueue(get_thd_id(),msg);
@@ -231,9 +231,9 @@ RC InputThread::server_recv_loop() {
 				msgs->erase(msgs->begin());
 				continue;
 			}
-#if CC_ALG == CALVIN||CC_ALG==MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == CALVIN||CC_ALG==HDCC || CC_ALG == SNAPPER
 			if(msg->rtype==CONF_STAT){
-				assert(CC_ALG==MIXED_LOCK);
+				assert(CC_ALG==HDCC);
 				g_conflict_queue.push((ConflictStaticsMessage*)msg);
 				msgs->erase(msgs->begin());
 				continue;

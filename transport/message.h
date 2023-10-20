@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ public:
   uint64_t txn_id;
   uint64_t batch_id;
   uint64_t return_node_id;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
   uint64_t original_return_node_id;
   int algo;
   uint64_t orig_txn_id, orig_batch_id;
@@ -194,7 +194,7 @@ public:
 #if CC_ALG == SILO
   uint64_t max_tid;
 #endif
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   bool isCommit;
 #endif
 #if CC_ALG == SNAPPER
@@ -235,7 +235,7 @@ public:
   void release() {}
 
   RC rc;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   uint64_t max_calvin_tid;
   uint64_t max_calvin_bid;
 #endif

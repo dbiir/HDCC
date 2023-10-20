@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -193,7 +193,7 @@ void parser(int argc, char * argv[]) {
   // Remove abort thread
   g_abort_thread_cnt = 0;
   g_total_thread_cnt -= 1;
-#elif CC_ALG == MIXED_LOCK
+#elif CC_ALG == HDCC
   g_total_thread_cnt += 3; // sequencer + scheduler thread + confilict stat thread
 #elif CC_ALG == SNAPPER
   g_total_thread_cnt += 3; // sequencer + scheduler thread + snapper check thread
@@ -267,7 +267,7 @@ void parser(int argc, char * argv[]) {
       printf("g_total_client_thread_cnt %d\n",g_total_client_thread_cnt);
       printf("g_total_node_cnt %d\n",g_total_node_cnt);
       printf("g_seq_batch_time_limit %ld\n",g_seq_batch_time_limit);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
       printf("g_calvin_thread_cnt %d\n",g_calvin_thread_cnt);
 #endif
 

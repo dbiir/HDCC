@@ -4,9 +4,9 @@ import os
 
 PATH=os.getcwd()
 
-user="rhardin"
-machine = "schroedinger.csail.mit.edu"
-project_dir = "/data1/rhardin/research/ddbms/distDBX/"
+user=""
+machine = ""
+project_dir = ""
 
 cmd = "scp {}@{}:{}tests.tgz .".format(user,machine,project_dir)
 os.system(cmd)

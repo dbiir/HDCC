@@ -38,7 +38,7 @@ if len(sys.argv) < 2:
      sys.exit("Usage: %s [-exec/-e/-noexec/-ne] [-c cluster] experiments\n \
             -exec/-e: compile and execute locally (default)\n \
             -noexec/-ne: compile first target only \
-            -c: run remote on cluster; possible values: istc, vcloud\n \
+            -c: run remote on cluster; possible values: vcloud\n \
             " % sys.argv[0])
 
 for arg in sys.argv[1:]:
@@ -47,7 +47,7 @@ for arg in sys.argv[1:]:
                 -exec/-e: compile and execute locally (default)\n \
                 -noexec/-ne: compile first target only \
                 -skip: skip any experiments already in results folder\n \
-                -c: run remote on cluster; possible values: istc, vcloud\n \
+                -c: run remote on cluster; possible values: vcloud\n \
                 " % sys.argv[0])
     if arg == "--exec" or arg == "-e":
         execute = True
@@ -68,6 +68,9 @@ for arg in sys.argv[1:]:
 
 for exp in exps:
     fmt,experiments = experiment_map[exp]()
+
+    total_sum = []
+    keywords = ['tput']
 
     for e in experiments:
         cfgs = get_cfgs(fmt,e)
@@ -108,11 +111,7 @@ for exp in exps:
             os.system(cmd)
 
             if remote:
-                if cluster == 'istc':
-                    machines_ = istc_machines
-                    uname = istc_uname
-                    cfg_fname = "istc_ifconfig.txt"
-                elif cluster == 'vcloud':
+                if cluster == 'vcloud':
                     machines_ = vcloud_machines
                     uname = vcloud_uname
                     uname2 = username
@@ -130,9 +129,7 @@ for exp in exps:
                 elif cfgs["WORKLOAD"] == "YCSB":
                     files = ["rundb", "runcl", "ifconfig.txt", "benchmarks/YCSB_schema.txt"]
                 for m, f in itertools.product(machines, files):
-                    if cluster == 'istc':
-                        cmd = 'scp {}/{} {}.csail.mit.edu:/{}/'.format(PATH, f, m, uname)
-                    elif cluster == 'vcloud':
+                    if cluster == 'vcloud':
                         os.system('./scripts/kill.sh {}'.format(m))
                         cmd = 'scp {}/{} {}:/{}'.format(PATH, f, m, uname)
                     print(cmd)
@@ -140,9 +137,7 @@ for exp in exps:
 
                 print("Deploying: {}".format(output_f))
                 os.chdir('./scripts')
-                if cluster == 'istc':
-                    cmd = './deploy.sh \'{}\' /{}/ {}'.format(' '.join(machines), uname, cfgs["NODE_CNT"])
-                elif cluster == 'vcloud':
+                if cluster == 'vcloud':
                     cmd = './vcloud_deploy.sh \'{}\' /{}/ {} {} {}'.format(' '.join(machines), uname, cfgs["NODE_CNT"], perfTime, uname2)
                 print(cmd)
                 fromtimelist.append(str(int(time.time())) + "000")
@@ -160,12 +155,11 @@ for exp in exps:
                 os.system(cmd)
                 os.chdir('..')
                 for m, n in zip(machines, range(len(machines))):
-                    if cluster == 'istc':
-                        cmd = 'scp {}.csail.mit.edu:/{}/results.out {}{}_{}.out'.format(m,uname,result_dir,n,output_f)
-                        print(cmd)
-                        os.system(cmd)
-                    elif cluster == 'vcloud':
-                        cmd = 'scp {}:/{}/dbresults.out results/{}/{}_{}.out'.format(m,uname,strnow,n,output_f)
+                    if cluster == 'vcloud':
+                        if n < cfgs['NODE_CNT']:
+                            cmd = 'scp {}:/{}/dbresults.out results/{}/{}_{}.out'.format(m,uname,strnow,n,output_f)
+                        else:
+                            cmd = 'scp {}:/{}/clresults.out results/{}/{}_{}.out'.format(m,uname,strnow,n,output_f)
                         print(cmd)
                         os.system(cmd)
 
@@ -189,27 +183,55 @@ for exp in exps:
                     pids[n].wait()
         tmp_path = os.getcwd()
         os.chdir(result_dir)
+        
         simple_f = open('simple_summary.out', 'a')
         simple_f.write('nodes: ' + str(machines[:cfgs['NODE_CNT']]) + '\n')
-        simple_f.write('Basic config' + '\n')
         simple_f.write(str(fmt) + '\n')
         simple_f.write(str(e) + '\n')
-        for i in range(cfgs['NODE_CNT']):
-            searchfile = str(i) + '_' + output_f + '.out'
-            cmd = 'cat %s'%(searchfile) + '| grep summary | awk \'{print$2}\''
-            res = ''.join(os.popen(cmd).readlines())
-            res = res.strip('\n')
-            res = res.replace('=', '": "')
-            res = res.replace(',', '", "')
-            res = '{"' + res + '"}'
-            metrics_dict = ast.literal_eval(res)
-            # output tput metric into simple_summary file, you can add any other metric that exists in the first row of original summary file
-            # note that row_conflict_total_cnts and all other below metrics can not be grabbed since they do not come in first row
-            metric = metrics_dict['tput']
-            simple_f.write('tput = ' + metric + '\n')
+        sums = {}
+        for i in range(len(machines)):
+            filename = str(i) + '_' + output_f + '.out'
+            file = open(filename, 'r')
+            content = file.read()
+            file.close()
+            simple_f.write('node ' + str(i) + '\n')
+
+            results = {}
+            for keyword in keywords:
+                pattern = r"\b" + keyword + r"\b\s*=\s*([\d\.]+)"
+                match = re.search(pattern, content)
+                if match:
+                    results[keyword] = match.group(1)
+                    if keyword == "tput" and i >= cfgs['NODE_CNT']:
+                        continue
+                    sums[keyword] = sums.get(keyword, 0) + float(match.group(1))
+
+            for keyword in keywords:
+                if keyword in results:
+                    simple_f.write(keyword + ' = ' + results[keyword] + '\n')
+
+        simple_f.write('sums' + '\n')
+        for keyword in keywords:
+                if keyword in sums:
+                    simple_f.write(keyword + ' = ' + str(sums[keyword]) + '\n')
+        simple_f.write('\n')
         simple_f.close()
+        total_sum.append(sums)
         os.chdir(tmp_path)
 
+    os.chdir(result_dir)
+    simple_f = open('simple_summary.out', 'a')
+    simple_f.write('total sum' + '\n')
+    for keyword in keywords:
+        simple_f.write(keyword + '\t')
+    simple_f.write('\n')
+    for sum in total_sum:
+        for keyword in keywords:
+            if keyword in sum:
+                simple_f.write(str(sum[keyword]) + '\t')
+        simple_f.write('\n')
+    simple_f.close()
+    os.chdir(tmp_path)
 
     al = []
     for e in experiments:
@@ -245,42 +267,3 @@ for exp in exps:
     for e in experiments:
         ccnt.append(e[-1])
     ccnt = sorted(list(set(ccnt)))
-
-    cmd = ''
-    os.chdir('./scripts')
-    if exp == 'ycsb_skew':
-        cmd = './result.sh -a ycsb_skew -n {} -c {} -s {} -t {}'.format(str(cn[0]), ','.join([str(x) for x in al]), ','.join([str(x) for x in sk]), strnow)
-    elif exp == 'ycsb_writes':
-        cmd='./result.sh -a ycsb_writes -n {} -c {} --wr {} -t {}'.format(cn[0], ','.join([str(x) for x in al]), ','.join([str(x) for x in wr]), strnow)
-    elif 'ycsb_scaling' in exp:
-        cmd='./result.sh -a ycsb_scaling -n {} -c {} -t {} --ft {} --tt {}'.format(','.join([str(x) for x in cn]), ','.join([str(x) for x in al]), strnow, ','.join(fromtimelist), ','.join(totimelist))
-    elif 'tpcc_scaling' in exp:
-        cmd='./result.sh -a tpcc_scaling -n {} -c {} -t {}'.format(','.join([str(x) for x in cn]), ','.join([str(x) for x in al]), strnow)
-    elif 'ycsb_stress' in exp:
-        cmd='./result.sh -a ycsb_stress -n {} -c {} -s {} -l {} -t {}'.format(str(cn[0]), ','.join([str(x) for x in al]), str(sk[0]), ','.join([str(x) for x in ld]), strnow)
-    elif 'tpcc_stress' in exp:
-        cmd='./result.sh -a tpcc_stress -n {} -c {} -l {} -t {}'.format(str(cn[0]), ','.join([str(x) for x in al]), ','.join([str(x) for x in tpcc_ld]), strnow)
-    elif 'tpcc_cstress' in exp:
-        cmd='./result.sh -a tpcc_stress_ctx -n {} -c {} -l {} -C {} -t {} --ft {} --tt {}'.format(str(cn[0]), ','.join([str(x) for x in al]), ','.join([str(x) for x in ld]), ','.join([str(x) for x in ccnt]), strnow, ','.join(fromtimelist), ','.join(totimelist))
-    print (cmd)
-    os.system(cmd)
-    print (cmd)
-
-    cmd=''
-    os.chdir('../draw')
-    if exp == 'ycsb_skew':
-       cmd='./deneva-plot.sh -a ycsb_skew -c {} -t {}'.format(','.join([str(x) for x in al]), strnow)
-    elif exp == 'ycsb_writes':
-       cmd='./deneva-plot.sh -a ycsb_writes -c {} -t {}'.format(','.join([str(x) for x in al]), strnow)
-    elif 'ycsb_scaling' in exp:
-       cmd='./deneva-plot.sh -a ycsb_scaling -c {} -t {}'.format(','.join([str(x) for x in al]), strnow)
-    elif 'tpcc_scaling' in exp:
-       cmd='./deneva-plot.sh -a tpcc_scaling2 -c {} -t {}'.format(','.join([str(x) for x in al]), strnow)
-    elif 'ycsb_stress' in exp:
-       cmd='./deneva-plot.sh -a ycsb_stress -c {} -t {}'.format(','.join([str(x) for x in al]), strnow)
-    elif 'tpcc_stress' in exp:
-       cmd='./deneva-plot.sh -a tpcc_stress -c {} -t {}'.format(','.join([str(x) for x in al]), strnow)
-    elif 'tpcc_cstress' in exp:
-       cmd='./deneva-plot-his.sh -a tpcc_cstress -c {} -t {}'.format(','.join([str(x) for x in al]), strnow)
-    print(cmd)
-    os.system(cmd)

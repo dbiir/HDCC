@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@
 #include "query.h"
 #include "msg_queue.h"
 #include "message.h"
-#if CC_ALG == MIXED_LOCK
-#include "row_mixed_lock.h"
+#if CC_ALG == HDCC
+#include "row_hdcc.h"
 #endif
 
 void YCSBTxnManager::init(uint64_t thd_id, Workload * h_wl) {
@@ -51,7 +51,7 @@ void YCSBTxnManager::reset() {
 
 RC YCSBTxnManager::acquire_locks() {
   uint64_t starttime = get_sys_clock();
-  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
+  assert(CC_ALG == CALVIN || CC_ALG == HDCC || CC_ALG == SNAPPER);
   YCSBQuery* ycsb_query = (YCSBQuery*) query;
   locking_done = false;
   RC rc = RCOK;
@@ -295,7 +295,7 @@ RC YCSBTxnManager::run_ycsb_1(access_t acctype, row_t * row_local) {
 		int fid = 0;
 	  char * data = row_local->get_data();
 	  *(uint64_t *)(&data[fid * 100]) = 0;
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
     if (algo == CALVIN) {
       row_local->manager->_tid = txn->txn_id;
       row_local->manager->max_calvin_write_tid = txn->txn_id;
@@ -390,7 +390,7 @@ RC YCSBTxnManager::run_calvin_txn() {
 
 RC YCSBTxnManager::run_ycsb() {
   RC rc = RCOK;
-  assert(CC_ALG == CALVIN || CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER);
+  assert(CC_ALG == CALVIN || CC_ALG == HDCC || CC_ALG == SNAPPER);
   YCSBQuery* ycsb_query = (YCSBQuery*) query;
 
   for (uint64_t i = 0; i < ycsb_query->requests.size(); i++) {

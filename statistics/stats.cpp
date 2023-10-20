@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -55,8 +55,8 @@ void Stats_thd::init(uint64_t thd_id) {
 #if STATS_EVERY_INTERVAL
   row_conflict_total_cnt = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
   row_conflict_highest_cnt = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
-  mixed_lock_silo_cnts = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
-  mixed_lock_calvin_cnts = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
+  hdcc_silo_cnts = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
+  hdcc_calvin_cnts = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
   tputs = (uint64_t *) mem_allocator.align_alloc(sizeof(uint64_t) * SECOND);
 #endif
 
@@ -249,8 +249,8 @@ void Stats_thd::clear() {
   for (uint64_t i = 0; i < SECOND; i++) {
     row_conflict_total_cnt[i]=0;
     row_conflict_highest_cnt[i]=0;
-    mixed_lock_silo_cnts[i] = 0;
-    mixed_lock_calvin_cnts[i] = 0;
+    hdcc_silo_cnts[i] = 0;
+    hdcc_calvin_cnts[i] = 0;
     tputs[i] = 0;
   }
 #endif
@@ -361,11 +361,11 @@ void Stats_thd::clear() {
   wkdb_range=0;
   wkdb_commit_cnt=0;
 
-  //MIXED_LOCK
-  mixed_lock_silo_cnt=0;
-  mixed_lock_silo_local_cnt=0;
-  mixed_lock_calvin_cnt=0;
-  mixed_lock_calvin_local_cnt=0;
+  //HDCC
+  hdcc_silo_cnt=0;
+  hdcc_silo_local_cnt=0;
+  hdcc_calvin_cnt=0;
+  hdcc_calvin_local_cnt=0;
   extreme_mode_wait_time = 0;
   saved_txn_cnt = 0;
   deterministic_abort_cnt_silo = 0;
@@ -1117,18 +1117,18 @@ void Stats_thd::print(FILE * outf, bool prog) {
           dta_cs_wait_time / BILLION, dta_cs_wait_avg / BILLION, dta_case1_cnt, dta_case2_cnt,
           dta_case3_cnt, dta_case4_cnt, dta_case5_cnt, dta_range / BILLION, dta_commit_cnt,
           dta_commit_avg, dta_range_avg);
-  //MIXED_LOCK
+  //HDCC
   fprintf(outf,
           ",extreme_mode_wait_time=%f"
           ",saved_txn_cnt=%ld"
           ",deterministic_abort_cnt_silo=%ld"
           ",deterministic_abort_cnt_calvin=%ld"
-          ",mixed_lock_calvin_cnt=%ld"
-          ",mixed_lock_calvin_local_cnt=%ld"
-          ",mixed_lock_silo_cnt=%ld"
-          ",mixed_lock_silo_local_cnt=%ld",
-          extreme_mode_wait_time / BILLION, saved_txn_cnt, deterministic_abort_cnt_silo,deterministic_abort_cnt_calvin, mixed_lock_calvin_cnt, 
-          mixed_lock_calvin_local_cnt, mixed_lock_silo_cnt, mixed_lock_silo_local_cnt);
+          ",hdcc_calvin_cnt=%ld"
+          ",hdcc_calvin_local_cnt=%ld"
+          ",hdcc_silo_cnt=%ld"
+          ",hdcc_silo_local_cnt=%ld",
+          extreme_mode_wait_time / BILLION, saved_txn_cnt, deterministic_abort_cnt_silo,deterministic_abort_cnt_calvin, hdcc_calvin_cnt, 
+          hdcc_calvin_local_cnt, hdcc_silo_cnt, hdcc_silo_local_cnt);
   //SNAPPER
   fprintf(outf,
           ",snapper_false_deadlock=%ld"
@@ -1366,14 +1366,14 @@ void Stats_thd::print(FILE * outf, bool prog) {
     fprintf(outf,",hcnt%lu=%lu",i,row_conflict_highest_cnt[i]);
   }
 
-  fprintf(outf,"\nmixedlock_silo_cnts\n");
+  fprintf(outf,"\nhdcc_silo_cnts\n");
   for(uint64_t i = 0; i < SECOND; i ++) {
-    fprintf(outf,",scnts%lu=%lu", i, mixed_lock_silo_cnts[i]);
+    fprintf(outf,",scnts%lu=%lu", i, hdcc_silo_cnts[i]);
   }
 
-  fprintf(outf,"\nmixedlock_calvin_cnts\n");
+  fprintf(outf,"\nhdcc_calvin_cnts\n");
   for(uint64_t i = 0; i < SECOND; i ++) {
-    fprintf(outf,",ccnts%lu=%lu", i, mixed_lock_calvin_cnts[i]);
+    fprintf(outf,",ccnts%lu=%lu", i, hdcc_calvin_cnts[i]);
   }
 
   fprintf(outf,"\ntputs\n");
@@ -1566,8 +1566,8 @@ void Stats_thd::combine(Stats_thd * stats) {
   for(uint64_t i = 0; i < SECOND; i ++) {
     row_conflict_total_cnt[i] += stats->row_conflict_total_cnt[i];
     row_conflict_highest_cnt[i] += stats->row_conflict_highest_cnt[i];
-    mixed_lock_silo_cnts[i] += stats->mixed_lock_silo_cnts[i];
-    mixed_lock_calvin_cnts[i] += stats->mixed_lock_calvin_cnts[i];
+    hdcc_silo_cnts[i] += stats->hdcc_silo_cnts[i];
+    hdcc_calvin_cnts[i] += stats->hdcc_calvin_cnts[i];
     tputs[i] += stats->tputs[i];
   }
 #endif
@@ -1672,11 +1672,11 @@ void Stats_thd::combine(Stats_thd * stats) {
   wkdb_range+=stats->wkdb_range;
   wkdb_commit_cnt+=stats->wkdb_commit_cnt;
 
-  //MIXED_LOCK
-  mixed_lock_calvin_cnt+=stats->mixed_lock_calvin_cnt;
-  mixed_lock_calvin_local_cnt+=stats->mixed_lock_calvin_local_cnt;
-  mixed_lock_silo_cnt+=stats->mixed_lock_silo_cnt;
-  mixed_lock_silo_local_cnt+=stats->mixed_lock_silo_local_cnt;
+  //HDCC
+  hdcc_calvin_cnt+=stats->hdcc_calvin_cnt;
+  hdcc_calvin_local_cnt+=stats->hdcc_calvin_local_cnt;
+  hdcc_silo_cnt+=stats->hdcc_silo_cnt;
+  hdcc_silo_local_cnt+=stats->hdcc_silo_local_cnt;
   extreme_mode_wait_time += stats->extreme_mode_wait_time;
   saved_txn_cnt += stats->saved_txn_cnt;
   deterministic_abort_cnt_silo += stats->deterministic_abort_cnt_silo;

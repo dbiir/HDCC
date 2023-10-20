@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -214,8 +214,8 @@ public:
 
   //stats every interval
   uint64_t * tputs;
-  uint64_t * mixed_lock_silo_cnts;
-  uint64_t * mixed_lock_calvin_cnts;
+  uint64_t * hdcc_silo_cnts;
+  uint64_t * hdcc_calvin_cnts;
   // Conflict statistics thread
   uint64_t * row_conflict_total_cnt;
   uint64_t * row_conflict_highest_cnt;
@@ -333,11 +333,11 @@ public:
   double dta_range;
   uint64_t dta_commit_cnt;
 
-  //MIXED_LOCK
-  uint64_t mixed_lock_silo_cnt;
-  uint64_t mixed_lock_silo_local_cnt;
-  uint64_t mixed_lock_calvin_cnt;
-  uint64_t mixed_lock_calvin_local_cnt;
+  //HDCC
+  uint64_t hdcc_silo_cnt;
+  uint64_t hdcc_silo_local_cnt;
+  uint64_t hdcc_calvin_cnt;
+  uint64_t hdcc_calvin_local_cnt;
   double extreme_mode_wait_time;
   uint64_t saved_txn_cnt;
   uint64_t deterministic_abort_cnt_silo;

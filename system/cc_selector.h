@@ -48,13 +48,11 @@ public:
     void update_conflict_stats(TPCCQuery * query, row_t * row);
 #endif
     void update_ccselector();
-    Message* pack_msg();
-    void process_conflict_msg(ConflictStaticsMessage *msg);
     uint64_t get_total_conflict();
     uint64_t get_highest_conflict();
 private:
-    uint64_t *pstats;   //冲突统计信息指针
-    bool *is_high_conflict; //是否为高冲突分区
+    uint64_t *pstats;   // pointer to conflict stats
+    bool *is_high_conflict; // whether this is a high conflict partition
 };
 
 #endif

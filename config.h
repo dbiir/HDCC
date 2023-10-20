@@ -160,7 +160,7 @@
 
 // WAIT_DIE, NO_WAIT, TIMESTAMP, MVCC, CALVIN, MAAT, WOOKONG, TICTOC, SI
 #define ISOLATION_LEVEL SERIALIZABLE
-#define CC_ALG WOOKONG
+#define CC_ALG HDCC
 #define YCSB_ABORT_MODE false
 #define QUEUE_CAPACITY_NEW 1000000
 // all transactions acquire tuples according to the primary key order.
@@ -199,25 +199,16 @@
 #define TXN_QUEUE_SIZE_LIMIT    THREAD_CNT
 // [CALVIN]
 #define SEQ_THREAD_CNT 4
-// [MIXED_LOCK]
+// [HDCC]
 #define CALVIN_THREAD_CNT 1
 #define SHARD_SIZE 100000
-// tpcc payment
-// #define LOWER_BOUND 700
-// #define UPPER_BOUND 11000
-
-// tpcc neworder mpr = 0.05
-// #define LOWER_BOUND 300
-// #define UPPER_BOUND 180000
-// ycsb mpr = 0.2
 #define LOWER_BOUND 19000
 #define UPPER_BOUND 150000
 #define CONFLICT_SEND_INTERVAL 1 * BILLION // 1s
-#define PRORATE_TRANSACTION false
 #define PRORATE_RATIO 0
 #define EXTREME_MODE false
 #define DETERMINISTIC_ABORT_MODE false
-#define DETERMINISTIC_ABORT_RATIO 0.2
+#define DETERMINISTIC_ABORT_RATIO 0
 // [TICTOC]
 #define MAX_NUM_WAITS 4
 #define PRE_ABORT true
@@ -230,9 +221,9 @@
 /***********************************************/
 // Dynamic write perc and skew
 /***********************************************/
-#define DYNAMIC_FLAG 0 //dynamic workload, write perc and skew changes periodically
+#define DYNAMIC_FLAG false
 #define DYNAMIC_WRITE "0.1|0.9|0.5" //dynamic tuple write percentage
-#define DYNAMIC_SKEW "0.1|1.5|1.1"
+#define DYNAMIC_SKEW "0.3|1.5|0.9"
 #define SWITCH_INTERVAL 6 * BILLION
 /***********************************************/
 // Logging
@@ -432,7 +423,7 @@ enum PPSTxnType {
 #define DLI_DTA3 26
 #define SILO 27
 #define CNULL 28
-#define MIXED_LOCK 29
+#define HDCC 29
 #define SNAPPER 30
 // TIMESTAMP allocation method.
 #define TS_MUTEX          1

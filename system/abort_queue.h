@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 struct abort_entry {
   uint64_t penalty_end;
   uint64_t txn_id;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
   Message* msg;
 #endif
   abort_entry() {}
@@ -46,7 +46,7 @@ struct CompareAbortEntry {
 class AbortQueue {
 public:
   void init();
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
   uint64_t enqueue(uint64_t thd_id, uint64_t txn_id, TxnManager* txn, uint64_t abort_cnt);
 #else
   uint64_t enqueue(uint64_t thd_id, uint64_t txn_id, uint64_t abort_cnt);

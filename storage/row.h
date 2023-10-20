@@ -1,5 +1,5 @@
 /*
-	 Copyright 2016 Massachusetts Institute of Technology
+	 Copyright 2016 
 
 	 Licensed under the Apache License, Version 2.0 (the "License");
 	 you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ class Row_tictoc;
 class Row_si;
 class Row_null;
 class Row_silo;
-class Row_mixed_lock;
+class Row_hdcc;
 class Row_snapper;
 
 class row_t {
@@ -147,8 +147,8 @@ public:
 		Row_null * manager;
   #elif CC_ALG == SILO
   	Row_silo * manager;
-	#elif CC_ALG == MIXED_LOCK
-  		Row_mixed_lock * manager;
+	#elif CC_ALG == HDCC
+  		Row_hdcc * manager;
 	#elif CC_ALG == SNAPPER
 		Row_snapper * manager;
 

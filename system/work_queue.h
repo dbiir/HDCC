@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Massachusetts Institute of Technology
+   Copyright 2016 
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ public:
   // uint64_t get_rem_wq_cnt() {return remote_op_queue.size();}
   // uint64_t get_new_wq_cnt() {return new_query_queue.size();}
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   void calvin_enqueue(uint64_t thd_id, Message * msg, bool busy);
   Message * calvin_dequeue(uint64_t thd_id);
 #endif
@@ -128,7 +128,7 @@ private:
   uint64_t txn_enqueue_size;
   uint64_t txn_dequeue_size;
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
   boost::lockfree::queue<work_queue_entry* > * calvin_txn_queue;
   boost::lockfree::queue<work_queue_entry* > * calvin_work_queue;
   sem_t 	_calvin_semaphore;

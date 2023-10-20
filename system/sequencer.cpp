@@ -1,5 +1,5 @@
 /*
-	 Copyright 2016 Massachusetts Institute of Technology
+	 Copyright 2016 
 
 	 Licensed under the Apache License, Version 2.0 (the "License");
 	 you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 #include "message.h"
 #include "stats.h"
 #include <boost/lockfree/queue.hpp>
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 #include "cc_selector.h"
 #endif
 
@@ -42,7 +42,7 @@ void Sequencer::init(Workload * wl) {
 	wl_head = NULL;
 	wl_tail = NULL;
 	fill_queue = new boost::lockfree::queue<Message*, boost::lockfree::capacity<65526> > [g_node_cnt];
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 	last_epoch_max_id = 0;
 	blocked = false;
 	validationCount = 0;
@@ -60,7 +60,7 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 	assert(wait_list != NULL);
 	assert(en->txns_left > 0);
 
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 	uint64_t id = (msg->get_txn_id() - en->start_txn_id) / g_node_cnt;
 #else
 	uint64_t id = msg->get_txn_id() / g_node_cnt;
@@ -83,19 +83,19 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 			// free msg, queries
 #if WORKLOAD == YCSB
 			YCSBClientQueryMessage* cl_msg = (YCSBClientQueryMessage*)wait_list[id].msg;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 			if (msg->algo == CALVIN) {
 #endif
 			for(uint64_t i = 0; i < cl_msg->requests.size(); i++) {
 					DEBUG_M("Sequencer::process_ack() ycsb_request free\n");
 					mem_allocator.free(cl_msg->requests[i],sizeof(ycsb_request));
 			}
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 			}
 #endif
 #elif WORKLOAD == TPCC
 			TPCCClientQueryMessage* cl_msg = (TPCCClientQueryMessage*)wait_list[id].msg;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 	if(msg->algo == CALVIN){
 		if(cl_msg->txn_type == TPCC_NEW_ORDER) {
 			for(uint64_t i = 0; i < cl_msg->items.size(); i++) {
@@ -186,22 +186,22 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 										(double)skew_timespan / BILLION,
 										(double)wait_list[id].total_batch_time / BILLION);
 
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 			if (msg->algo == CALVIN) {
 #endif
 					cl_msg->release();
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 			}
 #endif
 
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 			if (msg->algo == CALVIN) {
 #endif
 			ClientResponseMessage *rsp_msg =
 					(ClientResponseMessage *)Message::create_message(msg->get_txn_id(), CL_RSP);
 					rsp_msg->client_startts = wait_list[id].client_startts;
 					msg_queue.enqueue(thd_id,rsp_msg,wait_list[id].client_id);
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 			}
 #endif
 #if WORKLOAD == PPS
@@ -216,13 +216,13 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 	if (en->txns_left == 0) {
 			DEBUG("FINISHED BATCH %ld\n",en->epoch);
 			LIST_REMOVE_HT(en,wl_head,wl_tail);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 			blocked = true;
 			while(validationCount > 0) {}
 #endif
 			mem_allocator.free(en->list,sizeof(qlite) * en->max_size);
 			mem_allocator.free(en,sizeof(qlite_ll));
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 			blocked = false;
 #endif
 	}
@@ -239,7 +239,7 @@ void Sequencer::process_abort(Message *msg, uint64_t thd_id) {
 	assert(wait_list != NULL);
 	assert(en->txns_left > 0);
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 	uint64_t id = (msg->get_txn_id() - en->start_txn_id) / g_node_cnt;
 #else
 	uint64_t id = msg->get_txn_id() / g_node_cnt;
@@ -255,13 +255,13 @@ void Sequencer::process_abort(Message *msg, uint64_t thd_id) {
 	if (en->txns_left == 0) {
 		DEBUG("FINISHED BATCH %ld\n",en->epoch);
 		LIST_REMOVE_HT(en,wl_head,wl_tail);
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 		blocked = true;
 		while(validationCount > 0) {}
 #endif
 		mem_allocator.free(en->list, sizeof(qlite) * en->max_size);
 		mem_allocator.free(en, sizeof(qlite_ll));
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 		blocked = false;
 #endif
 	}
@@ -290,7 +290,7 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 			en->size = 0;
 			en->txns_left = 0;
 			en->list = (qlite *) mem_allocator.alloc(sizeof(qlite) * en->max_size);
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 			en->start_txn_id = g_node_id + g_node_cnt * next_txn_id;
 #endif
 			LIST_PUT_TAIL(wl_head,wl_tail,en)
@@ -301,7 +301,7 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 		}
 
 		txnid_t txn_id = g_node_id + g_node_cnt * next_txn_id;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 		uint64_t id = next_txn_id - last_epoch_max_id;
 		next_txn_id++;
 		if (id >= en->max_size) {
@@ -316,7 +316,7 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 		msg->txn_id = txn_id;
 		assert(txn_id != UINT64_MAX);
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 		if (cc_selector.get_best_cc(msg) == SILO) {
 			msg->algo = SILO;
 			if(msg->rtype == RTXN){
@@ -330,7 +330,6 @@ void Sequencer::process_txn(Message *msg, uint64_t thd_id, uint64_t early_start,
 			msg->rtype = CL_QRY;
 		}
 #elif CC_ALG == SNAPPER
-// 不确定CC_SELECTOR如果没有初始化是否还能用
 		if (cc_selector.get_best_cc(msg) == WAIT_DIE) {
 			msg->algo = WAIT_DIE;
 			if(msg->rtype == RTXN){
@@ -421,7 +420,7 @@ void Sequencer::send_next_batch(uint64_t thd_id) {
 	uint64_t prof_stat = get_sys_clock();
 	qlite_ll * en = wl_tail;
 #if LOGGING & LOG_REDO
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 	logger.enqueueRecord(logger.createRecord(thd_id, L_C_FLUSH, 0, 0, 0));
 #else
 	logger.enqueueRecord(logger.createRecord(thd_id, L_C_FLUSH, 0, 0));
@@ -431,7 +430,7 @@ void Sequencer::send_next_batch(uint64_t thd_id) {
 	if(en && en->epoch == simulation->get_seq_epoch()) {
 		DEBUG("SEND NEXT BATCH %ld [%ld,%ld] %ld\n", thd_id, simulation->get_seq_epoch(), en->epoch,
 					en->size);
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 		if (en->txns_left == 0) {
 			DEBUG("FINISHED BATCH %ld\n",en->epoch);
 			LIST_REMOVE_HT(en,wl_head,wl_tail);
@@ -441,7 +440,7 @@ void Sequencer::send_next_batch(uint64_t thd_id) {
 #endif
 			empty = false;
 			en->batch_send_time = prof_stat;
-#if CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#if CC_ALG == HDCC || CC_ALG == SNAPPER
 		}
 #endif
 	}
@@ -479,12 +478,12 @@ void Sequencer::send_next_batch(uint64_t thd_id) {
 	INC_STATS(thd_id,seq_prep_time,get_sys_clock() - prof_stat);
 #if CC_ALG == CALVIN
 	next_txn_id = 0;
-#elif CC_ALG == MIXED_LOCK || CC_ALG == SNAPPER
+#elif CC_ALG == HDCC || CC_ALG == SNAPPER
 	last_epoch_max_id = next_txn_id;
 #endif
 }
 
-#if CC_ALG == MIXED_LOCK
+#if CC_ALG == HDCC
 bool Sequencer::checkDependency(uint64_t batch_id, uint64_t txn_id) {
 	qlite_ll * en = wl_head;
 	if (!en || en->epoch > batch_id) {
