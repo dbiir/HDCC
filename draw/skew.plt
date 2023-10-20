@@ -10,7 +10,6 @@ set xrange [0:1.0]
 #set terminal postscript eps color enhanced linewidth 3 "Helvetica" 25
 set terminal svg linewidth 1
 
-
 set ylabel "Throughput"
 #set yrange [0:28]
 set output "1tpmc.svg"
@@ -25,5 +24,3 @@ set ylabel "Distributed Txn Ratio(%)"
 #set yrange [0:100]
 set output "3distributed.svg"
 plot "tmp-WOOKONG" using 1:4 title "WOOKONG" w lp lw 2 ps 2 pt 1 lc rgb "light-red" dt 1,"tmp-MAAT" using 1:4 title "MAAT" w lp lw 2 ps 2 pt 2 lc rgb "brown4" dt 2,"tmp-TIMESTAMP" using 1:4 title "T/O" w lp lw 2 ps 2 pt 3 lc rgb "black" dt 1, "tmp-MVCC" using 1:4 title "MVCC" w lp lw 2 ps 2 pt 4 lc rgb "blue" dt 2
-
-
