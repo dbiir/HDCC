@@ -346,7 +346,7 @@ void TxnManager::init(uint64_t thd_id, Workload * h_wl) {
 	_signal_abort = false;
 	_timestamp = glob_manager.get_ts(get_thd_id());
 #endif
-#if CC_ALG == CALVIN
+#if CC_ALG == CALVIN || CC_ALG == SNAPPER
 	phase = CALVIN_RW_ANALYSIS;
 	locking_done = false;
 	calvin_locked_rows.init(MAX_ROW_PER_TXN);
@@ -380,11 +380,11 @@ void TxnManager::init(uint64_t thd_id, Workload * h_wl) {
 	max_calvin_bid = 0;
 #endif
 #if CC_ALG == SNAPPER
-	phase = CALVIN_RW_ANALYSIS;
-	calvin_locked_rows.init(MAX_ROW_PER_TXN);
-	wait_for_locks = set<row_t *>();
-	read_write_set = vector<pair<row_t *, access_t>>();
-	wait_for_locks_ready = true;
+// 	phase = CALVIN_RW_ANALYSIS;
+// 	calvin_locked_rows.init(MAX_ROW_PER_TXN);
+// 	wait_for_locks = set<row_t *>();
+// 	read_write_set = vector<pair<row_t *, access_t>>();
+// 	wait_for_locks_ready = true;
 	last_lock_ts = 0;
 	algo = -1;
 #endif

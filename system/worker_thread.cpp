@@ -589,7 +589,7 @@ RC WorkerThread::run() {
         bool success = ATOM_CAS(simulation->batch_process_count, g_aria_batch_size, 0);
         assert(success);
         if (!isAriaCommit) {
-          if (simulation->aria_phase == ARIA_RESERVATION || simulation->aria_phase == ARIA_CHECK) {
+          if (g_mpr != 0 && (simulation->aria_phase == ARIA_RESERVATION || simulation->aria_phase == ARIA_CHECK)) {
             for (uint64_t i = 0; i < g_node_cnt; i++) {
               if (i == g_node_id) continue;
               msg_queue.enqueue(_thd_id, Message::create_message(ARIA_ACK), i);

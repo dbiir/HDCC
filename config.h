@@ -324,7 +324,7 @@ enum DATxnType {
 
 
 #define TXN_TYPE          TPCC_ALL
-#define PERC_PAYMENT 0.0
+#define PERC_PAYMENT 0.489
 #define FIRSTNAME_MINLEN      8
 #define FIRSTNAME_LEN         16
 #define LASTNAME_LEN        16
@@ -486,7 +486,7 @@ enum PPSTxnType {
 #define WARMUP_TIMER 1 * 60 * BILLION // ~1 minutes
 #define STATS_EVERY_INTERVAL true
 #define ONE_SECOND 1 * BILLION
-#define SNAPPER_TXN_TIMEOUT 0.1 * MILLION
+#define SNAPPER_TXN_TIMEOUT 0.1 * BILLION
 
 #define SEED 0
 #define SHMEM_ENV false

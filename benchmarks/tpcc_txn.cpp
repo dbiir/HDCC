@@ -132,7 +132,7 @@ bool TPCCTxnManager::is_done() {
 
 RC TPCCTxnManager::acquire_locks() {
 	uint64_t starttime = get_sys_clock();
-	assert(CC_ALG == CALVIN || CC_ALG == HDCC);
+	assert(CC_ALG == CALVIN || CC_ALG == HDCC || CC_ALG == SNAPPER);
 	locking_done = false;
 	RC rc = RCOK;
 	RC rc2;

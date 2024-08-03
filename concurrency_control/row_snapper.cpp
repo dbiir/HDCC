@@ -58,9 +58,9 @@ RC Row_snapper::lock_get(lock_t type, TxnManager *txn) {
     uint64_t lock_get_start_time = starttime;
 
     uint64_t mtx_wait_starttime = get_sys_clock();
-    if (txn->algo == WAIT_DIE) {
+    // if (txn->algo == WAIT_DIE) {
         pthread_mutex_lock(_latch);
-    }
+    // }
     INC_STATS(txn->get_thd_id(), mtx[17], get_sys_clock() - mtx_wait_starttime);
 
     INC_STATS(txn->get_thd_id(), trans_access_lock_wait_time, get_sys_clock() - lock_get_start_time);
@@ -98,6 +98,7 @@ RC Row_snapper::lock_get(lock_t type, TxnManager *txn) {
             waiter_cnt++;
 
             ATOM_CAS(txn->lock_ready, true, false);
+            txn->incr_lr();
             rc = WAIT;
         } else if (txn->algo == WAIT_DIE) {
             bool canwait = true;
@@ -190,8 +191,8 @@ RC Row_snapper::lock_get(lock_t type, TxnManager *txn) {
 
         if (txn->algo == CALVIN) {
             while(!ATOM_CAS(entry->txn->wait_for_locks_ready, true, false)) {}
-            int delete_cnt = txn->wait_for_locks.erase(&*_row);
-            assert (delete_cnt == 1);
+            // int delete_cnt = txn->wait_for_locks.erase(&*_row);
+            // assert (delete_cnt == 1);
             ATOM_CAS(entry->txn->wait_for_locks_ready, false, true);
 
             if (txn->get_batch_id() != last_batch_id) {
@@ -208,9 +209,9 @@ RC Row_snapper::lock_get(lock_t type, TxnManager *txn) {
     }
     txn->txn_stats.cc_time += timespan;
     txn->txn_stats.cc_time_short += timespan;
-    if (txn->algo == WAIT_DIE) {
+    // if (txn->algo == WAIT_DIE) {
         pthread_mutex_unlock(_latch);
-    }
+    // }
 
     return rc;
 }
@@ -302,24 +303,32 @@ RC Row_snapper::lock_release(TxnManager *txn) {
 
 
         if (entry->txn->algo == CALVIN) {
-            while(!ATOM_CAS(entry->txn->wait_for_locks_ready, true, false)) {}
-            int delete_cnt = entry->txn->wait_for_locks.erase(&*_row);
-            if (delete_cnt != 1) {
-                    assert(false);
-            }
-            ATOM_CAS(entry->txn->wait_for_locks_ready, false, true);
+            // while(!ATOM_CAS(entry->txn->wait_for_locks_ready, true, false)) {}
+            // int delete_cnt = entry->txn->wait_for_locks.erase(&*_row);
+            // if (delete_cnt != 1) {
+            //         assert(false);
+            // }
+            // ATOM_CAS(entry->txn->wait_for_locks_ready, false, true);
 
             if (entry->txn->get_batch_id() != last_batch_id) {
                 last_batch_id = entry->txn->get_batch_id();
             }
-            if (entry->txn->wait_for_locks.empty()) {
+            // if (entry->txn->wait_for_locks.empty()) {
+            //     if (ATOM_CAS(entry->txn->lock_ready, false, true)) {
+            //         if(txn->algo == CALVIN) {
+            //             entry->txn->txn_stats.cc_block_time += timespan;
+            //             entry->txn->txn_stats.cc_block_time_short += timespan;
+            //         }
+            //         txn_table.restart_txn(txn->get_thd_id(), entry->txn->get_txn_id(),
+            //                             entry->txn->get_batch_id());
+            //     }
+            // }
+            if (entry->txn->decr_lr() == 0) {
                 if (ATOM_CAS(entry->txn->lock_ready, false, true)) {
-                    if(txn->algo == CALVIN) {
-                        entry->txn->txn_stats.cc_block_time += timespan;
-                        entry->txn->txn_stats.cc_block_time_short += timespan;
-                    }
                     txn_table.restart_txn(txn->get_thd_id(), entry->txn->get_txn_id(),
                                         entry->txn->get_batch_id());
+                } else {
+                    INC_STATS(txn->get_thd_id(), snapper_false_deadlock,1)
                 }
             }
             if (lock_type == LOCK_NONE) {
