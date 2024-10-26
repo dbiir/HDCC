@@ -17,12 +17,17 @@
 #include "mem_alloc.h"
 #include "index_btree.h"
 #include "row.h"
+#include "row_hdcc.h"
+#include "txn.h"
+#include "table.h"
 
 RC index_btree::init(uint64_t part_cnt) {
 	this->part_cnt = part_cnt;
 	order = BTREE_ORDER;
 	// these pointers can be mapped anywhere. They won't be changed
 	roots = (bt_node **) malloc(part_cnt * sizeof(bt_node *));
+	heads = (bt_node **) malloc(part_cnt * sizeof(bt_node *));
+	tails = (bt_node **) malloc(part_cnt * sizeof(bt_node *));
 	// "cur_xxx_per_thd" is only for SCAN queries.
 	ARR_PTR(bt_node *, cur_leaf_per_thd, g_thread_cnt);
 	ARR_PTR(UInt32, cur_idx_per_thd, g_thread_cnt);
@@ -30,8 +35,11 @@ RC index_btree::init(uint64_t part_cnt) {
 	for (UInt32 part_id = 0; part_id < part_cnt; part_id ++) {
 		RC rc;
 		rc = make_lf(part_id, roots[part_id]);
+		heads[part_id] = roots[part_id];
+		tails[part_id] = roots[part_id];
 		assert (rc == RCOK);
 	}
+	printf("Index init with %ld partitions\n",part_cnt);
 	return RCOK;
 }
 
@@ -47,12 +55,17 @@ bt_node * index_btree::find_root(uint64_t part_id) {
 }
 
 bool index_btree::index_exist(idx_key_t key) {
-	assert(false); // part_id is not correct now.
+	assert(false);
+}
+
+bool index_btree::index_exist(idx_key_t key, int part_id, TxnManager * txn) {
 	glob_param params;
-	params.part_id = key_to_part(key) % part_cnt;
+	params.part_id = part_id;
+	params.txn = txn;
 	bt_node * leaf;
 	// does not matter which thread check existence
-	find_leaf(params, key, INDEX_NONE, leaf);
+	RC rc = find_leaf(params, key, INDEX_NONE, leaf);
+	if (rc != RCOK) return false;
 	if (leaf == NULL) return false;
 	for (UInt32 i = 0; i < leaf->num_keys; i++)
     	if (leaf->keys[i] == key) {
@@ -85,44 +98,110 @@ RC index_btree::index_next(uint64_t thd_id, itemid_t * &item, bool samekey) {
 	return RCOK;
 }
 
-RC index_btree::index_read(idx_key_t key, itemid_t *& item) {
-	assert(false);
-	return RCOK;
-}
+// RC index_btree::index_read(idx_key_t key, itemid_t *& item) {
+// 	assert(false);
+// 	return RCOK;
+// }
 
 RC index_btree::index_read(idx_key_t key, itemid_t *&item, int part_id) {
-
-	return index_read(key, item, 0, part_id);
+	return index_read(key, item, 0, part_id, NULL);
 }
 
-RC index_btree::index_read(idx_key_t key, itemid_t *&item, uint64_t thd_id, int64_t part_id) {
+RC index_btree::index_read(idx_key_t key, itemid_t *&item, int part_id, int thd_id, TxnManager * txn) {
+	uint64_t starttime = get_sys_clock();
 	RC rc = Abort;
 	glob_param params;
 	assert(part_id != -1);
 	params.part_id = part_id;
+	params.txn = txn;
 	bt_node * leaf;
-	find_leaf(params, key, INDEX_READ, leaf);
-  if (leaf == NULL) M_ASSERT(false, "the leaf does not exist!");
-	for (UInt32 i = 0; i < leaf->num_keys; i++)
-		if (leaf->keys[i] == key) {
-			item = (itemid_t *)leaf->pointers[i];
-			release_latch(leaf);
-			(*cur_leaf_per_thd[thd_id]) = leaf;
-			*cur_idx_per_thd[thd_id] = i;
-			return RCOK;
+	while (find_leaf(params, key, INDEX_READ, leaf) != RCOK) {}
+	if (leaf == NULL) M_ASSERT_V(false, "the leaf does not exist!");
+		for (UInt32 i = 0; i < leaf->num_keys; i++) {
+			if (leaf->keys[i] == key) {
+				item = (itemid_t *)leaf->pointers[i];
+				release_latch(leaf->parent);
+				// release_latch(leaf);
+				// (*cur_leaf_per_thd[thd_id]) = leaf;
+				// *cur_idx_per_thd[thd_id] = i;
+				INC_STATS(thd_id, btree_read_time, get_sys_clock() - starttime);
+				return RCOK;
+			}
 		}
 	// release the latch after reading the node
 
 	printf("key = %ld\n", key);
-	M_ASSERT(false, "the key does not exist!");
+	M_ASSERT_V(false, "the key does not exist!");
 	return rc;
 }
 
-RC index_btree::index_insert(idx_key_t key, itemid_t * item, int part_id) {
+RC index_btree::index_read(idx_key_t key, itemid_t *&item, int part_id, int thd_id) {
+	return index_read(key, item, part_id, thd_id, NULL);
+}
+
+RC index_btree::index_read(idx_key_t key, int count, itemid_t * &item, int part_id) {
+	assert(false);
+	return RCOK;
+}
+
+RC index_btree::leaf_row_access(idx_key_t key, idxf_acc_t access_type, int part_id, TxnManager * txn, bt_node *& leaf, row_t *& row) {
+	RC rc = RCOK;
+	switch(access_type) {
+		case LF_FIRST:
+			leaf = heads[part_id];
+			row = leaf->row;
+			return RCOK;
+		case LF_KEY:
+			glob_param params;
+			params.part_id = part_id;
+			rc = find_leaf(params, key, INDEX_NONE, leaf);
+			if (rc == RCOK) {
+				row = (row_t *)leaf->row;
+				return RCOK;
+			} else {
+				leaf = NULL;
+				row = NULL;
+				return Abort;
+			}
+		break;
+		case LF_LAST:
+			leaf = tails[part_id];
+			row = tails[part_id]->row;
+			return RCOK;
+		default:
+			assert(false);
+	}
+}
+
+RC index_btree::index_remove(idx_key_t key, int part_id) {
+	glob_param params;
+	assert(part_id != -1);
+	params.part_id = part_id;
+	bt_node * leaf;
+	find_leaf(params, key, INDEX_DELETE, leaf);
+	itemid_t * item;
+	for (UInt32 i = 0; i < leaf->num_keys; i++) {
+		if (leaf->keys[i] == key) {
+			item = (itemid_t *)leaf->pointers[i];
+			item->valid = false;
+			if (i == order - 1) {
+				// Hack
+				row_t * row = leaf->next->row;
+				leaf->next->row = leaf->row;
+				heads[part_id] = leaf->next;
+				leaf->row = row;
+			}
+		}
+	}
+	return RCOK;
+}
+
+RC index_btree::index_insert(idx_key_t key, itemid_t * item, int part_id, TxnManager * txn) {
 	glob_param params;
 	if (WORKLOAD == TPCC) assert(part_id != -1);
 	assert(part_id != -1);
 	params.part_id = part_id;
+	params.txn = txn;
 	// create a tree if there does not exist one already
 	RC rc = RCOK;
 	bt_node * root = find_root(params.part_id);
@@ -132,9 +211,13 @@ RC index_btree::index_insert(idx_key_t key, itemid_t * item, int part_id) {
 	bt_node * ex_list[100];
 	bt_node * leaf = NULL;
 	bt_node * last_ex = NULL;
-	rc = find_leaf(params, key, INDEX_INSERT, leaf, last_ex);
-	assert(rc == RCOK);
+	// rc = find_leaf(params, key, INDEX_INSERT, leaf, last_ex);
+	// assert(rc == RCOK);
+	uint64_t starttime = get_sys_clock();
+	while (find_leaf(params, key, INDEX_INSERT, leaf, last_ex) != RCOK) {}
+	INC_STATS(params.txn->get_thd_id(), btree_traversal_time, get_sys_clock() - starttime);
 
+	starttime = get_sys_clock();
 	bt_node * tmp_node = leaf;
 	if (last_ex != NULL) {
 		while (tmp_node != last_ex) {
@@ -154,21 +237,39 @@ RC index_btree::index_insert(idx_key_t key, itemid_t * item, int part_id) {
 		rc = insert_into_leaf(params, leaf, key, item);
 		// only the leaf should be ex latched.
 //		assert( release_latch(leaf) == LATCH_EX );
-    for (int i = 0; i < depth; i++) release_latch(ex_list[i]);
+		if (simulation->is_setup_done()) {
+			for (int i = 1; i < depth; i++) release_latch(ex_list[i]);
+		} else {
+			for (int i = 0; i < depth; i++) release_latch(ex_list[i]);
+		}
 //			assert( release_latch(ex_list[i]) == LATCH_EX );
-  } else {  // split the nodes when necessary
+	} else {  // split the nodes when necessary
 		rc = split_lf_insert(params, leaf, key, item);
-    for (int i = 0; i < depth; i++) release_latch(ex_list[i]);
+		if (simulation->is_setup_done()) {
+			for (int i = 1; i < depth; i++) release_latch(ex_list[i]);
+		} else {
+			for (int i = 0; i < depth; i++) release_latch(ex_list[i]);
 //			assert( release_latch(ex_list[i]) == LATCH_EX );
+		}
 	}
+	INC_STATS(params.txn->get_thd_id(), btree_insert_time, get_sys_clock() - starttime);
 //	assert(leaf->latch_type == LATCH_NONE);
 	return rc;
+}
+
+RC index_btree::index_insert(idx_key_t key, itemid_t * item, int part_id) {
+	return index_insert(key, item, part_id, NULL);
 }
 
 RC index_btree::make_lf(uint64_t part_id, bt_node *& node) {
 	RC rc = make_node(part_id, node);
 	if (rc != RCOK) return rc;
 	node->is_leaf = true;
+#if TXN_TYPE == TPCC_ALL
+	node->row = (row_t *) mem_allocator.alloc(sizeof(row_t));
+	node->row->init(table, part_id);
+	node->row->init_manager(node->row);
+#endif
 	return RCOK;
 }
 
@@ -190,6 +291,7 @@ RC index_btree::make_node(uint64_t part_id, bt_node *& node) {
 	new_node->is_leaf = false;
 	new_node->num_keys = 0;
 	new_node->parent = NULL;
+	new_node->prev = NULL;
 	new_node->next = NULL;
 //	new_node->locked = false;
 	new_node->latch = false;
@@ -227,8 +329,8 @@ bool index_btree::latch_node(bt_node * node, latch_t latch_type) {
 	latch_t node_latch = node->latch_type;
   if (node_latch == LATCH_NONE || (node_latch == LATCH_SH && latch_type == LATCH_SH)) {
 		node->latch_type = latch_type;
-    if (node_latch == LATCH_NONE) M_ASSERT((node->share_cnt == 0), "share cnt none 0!");
-    if (node->latch_type == LATCH_SH) node->share_cnt++;
+		if (node_latch == LATCH_NONE) M_ASSERT_V((node->share_cnt == 0), "share cnt none 0!");
+		if (node->latch_type == LATCH_SH) node->share_cnt++;
 		success = true;
   } else  // latch_type incompatible
 		success = false;
@@ -248,12 +350,12 @@ latch_t index_btree::release_latch(bt_node * node) {
   }
 //		pthread_mutex_lock(&node->locked);
 //		while (!ATOM_CAS(node->locked, false, true)) {}
-	M_ASSERT((node->latch_type != LATCH_NONE), "release latch fault");
+	M_ASSERT_V((node->latch_type != LATCH_NONE), "release latch fault");
 	if (node->latch_type == LATCH_EX)
 		node->latch_type = LATCH_NONE;
 	else if (node->latch_type == LATCH_SH) {
 		node->share_cnt --;
-    if (node->share_cnt == 0) node->latch_type = LATCH_NONE;
+    	if (node->share_cnt == 0) node->latch_type = LATCH_NONE;
 	}
 //	if ( g_cc_alg != HSTORE )
 	bool ok = ATOM_CAS(node->latch, true, false);
@@ -264,14 +366,15 @@ latch_t index_btree::release_latch(bt_node * node) {
 }
 
 RC index_btree::upgrade_latch(bt_node * node) {
-  if (!ENABLE_LATCH) return RCOK;
+  	if (!ENABLE_LATCH) return RCOK;
 	bool success = false;
 //	if ( g_cc_alg != HSTORE )
-  while (!ATOM_CAS(node->latch, false, true)) {
-  }
+	// while (!ATOM_CAS(node->latch, false, true)) {}
+	if (!ATOM_CAS(node->latch, false, true)) return Abort;
 //		pthread_mutex_lock(&node->locked);
 //		while (!ATOM_CAS(node->locked, false, true)) {}
-	M_ASSERT( (node->latch_type == LATCH_SH), "" );
+	// M_ASSERT( (node->latch_type == LATCH_SH), "" );
+	assert(node->latch_type == LATCH_SH);
 	if (node->share_cnt > 1)
 		success = false;
 	else { // share_cnt == 1
@@ -293,11 +396,10 @@ RC index_btree::upgrade_latch(bt_node * node) {
 
 RC index_btree::cleanup(bt_node * node, bt_node * last_ex) {
 	if (last_ex != NULL) {
-		do {
+		while (node != last_ex && node->parent != NULL) {
 			node = node->parent;
-//			assert(release_latch(node) == LATCH_EX);
 			release_latch(node);
-    } while (node != last_ex);
+    	}
 	}
 	return RCOK;
 }
@@ -316,48 +418,121 @@ RC index_btree::find_leaf(glob_param params, idx_key_t key, idx_acc_t access_typ
 	bt_node * c = find_root(params.part_id);
 	assert(c != NULL);
 	bt_node * child;
+	// For index_exist use.
 	if (access_type == INDEX_NONE) {
 		while (!c->is_leaf) {
 			for (i = 0; i < c->num_keys; i++) {
-        if (key < c->keys[i]) break;
+        		if (key < c->keys[i]) break;
+			}
+			c = (bt_node *)c->pointers[i];
+		}
+		leaf = c;
+		row_t * row __attribute__((unused));
+		RC rc = params.txn->get_row(leaf->row, WR, row);
+		return rc;
+	}
+	// Does not remove index at the first time, thus no need to lock non-leaf nodes
+	if (access_type == INDEX_DELETE) {
+		while (!c->is_leaf) {
+			for (i = 0; i < c->num_keys; i++) {
+        		if (key < c->keys[i]) break;
 			}
 			c = (bt_node *)c->pointers[i];
 		}
 		leaf = c;
 		return RCOK;
 	}
-	// key should be inserted into the right side of i
-  if (!latch_node(c, LATCH_SH)) return Abort;
-	while (!c->is_leaf) {
-		assert(get_part_id(c) == params.part_id);
-		assert(get_part_id(c->keys) == params.part_id);
-		for (i = 0; i < c->num_keys; i++) {
-      if (key < c->keys[i]) break;
+#if CC_ALG == CALVIN || CC_ALG == SILO || CC_ALG == HDCC
+	if (simulation->is_setup_done() && c->is_leaf) {
+		leaf = c;
+		RC rc;
+		row_t * row __attribute__((unused));
+		if (access_type == INDEX_INSERT) {
+			rc = params.txn->get_row(c->row, WR, row);
+		} else {
+			rc = params.txn->get_row(c->row, RD, row);
 		}
-		child = (bt_node *)c->pointers[i];
-		if (!latch_node(child, LATCH_SH)) {
-			release_latch(c);
-			cleanup(c, last_ex);
-			last_ex = NULL;
+		if (rc == RCOK || rc == WAIT) {
+			return RCOK;
+		} else {
 			return Abort;
 		}
-		if (access_type == INDEX_INSERT) {
-			if (child->num_keys == order - 1) {
-				if (upgrade_latch(c) != RCOK) {
-					release_latch(c);
-					release_latch(child);
+	}
+#endif
+	// key should be inserted into the right side of i
+  	if (!latch_node(c, LATCH_SH)) return Abort;
+	while (!c->is_leaf) {
+		// assert(get_part_id(c) == params.part_id);
+		// assert(get_part_id(c->keys) == params.part_id);
+		for (i = 0; i < c->num_keys; i++) {
+      		if (key < c->keys[i]) break;
+		}
+		child = (bt_node *)c->pointers[i];
+#if CC_ALG == CALVIN || CC_ALG == SILO || CC_ALG == HDCC
+		if (simulation->is_setup_done() && child->is_leaf) {
+			leaf = child;
+			RC rc;
+			row_t * row __attribute__((unused));
+			if (access_type == INDEX_INSERT) {
+				// rc = child->row->get_lock(WR, params.txn);
+				rc = params.txn->get_row(child->row, WR, row);
+				if (rc == RCOK && child->num_keys == order - 1) {
+					assert(c->latch_type == LATCH_SH);
+					while (upgrade_latch(c) != RCOK) {}
+					if (last_ex == NULL) {
+						last_ex = c;
+					}
+				} else {
 					cleanup(c, last_ex);
 					last_ex = NULL;
-					return Abort;
+					release_latch(c);
 				}
-        if (last_ex == NULL) last_ex = c;
-      } else {
+			} else {
+				// rc = child->row->get_lock(RD, params.txn);
+				rc = params.txn->get_row(child->row, RD, row);
+				assert(c->latch_type == LATCH_SH);
+				// release_latch(c);
+			}
+			if (rc != RCOK) {
 				cleanup(c, last_ex);
 				last_ex = NULL;
 				release_latch(c);
 			}
-		} else
-			release_latch(c); // release the LATCH_SH on c
+			if (rc == RCOK || rc == WAIT) {
+				return RCOK;
+			} else {
+				return Abort;
+			}
+		} else {
+#endif
+			if (!latch_node(child, LATCH_SH)) {
+				release_latch(c);
+				cleanup(c, last_ex);
+				last_ex = NULL;
+				return Abort;
+			}
+			if (access_type == INDEX_INSERT) {
+				if (child->num_keys == order - 1) {
+					if (upgrade_latch(c) != RCOK) {
+						release_latch(c);
+						release_latch(child);
+						cleanup(c, last_ex);
+						last_ex = NULL;
+						return Abort;
+					}
+					if (last_ex == NULL) last_ex = c;
+				} else {
+					cleanup(c, last_ex);
+					last_ex = NULL;
+					release_latch(c);
+				}
+			} else {
+				release_latch(c); // release the LATCH_SH on c
+			}
+#if CC_ALG == CALVIN || CC_ALG == SILO || CC_ALG == HDCC
+		}
+#endif
+		
 		c = child;
 	}
 	// c is leaf
@@ -393,7 +568,7 @@ RC index_btree::insert_into_leaf(glob_param params, bt_node * leaf, idx_key_t ke
     leaf->keys[insertion_point] = key;
     leaf->pointers[insertion_point] = (void *)item;
     leaf->num_keys++;
-	M_ASSERT( (leaf->num_keys < order), "too many keys in leaf" );
+	M_ASSERT_V( (leaf->num_keys < order), "too many keys in leaf" );
     return RCOK;
 }
 
@@ -410,7 +585,7 @@ RC index_btree::split_lf_insert(glob_param params, bt_node * leaf, idx_key_t key
 	rc = make_lf(part_id, new_leaf);
 	if (rc != RCOK) return rc;
 
-	M_ASSERT(leaf->num_keys == order - 1, "trying to split non-full leaf!");
+	M_ASSERT_V(leaf->num_keys == order - 1, "trying to split non-full leaf!");
 
 	idx_key_t temp_keys[BTREE_ORDER];
 	itemid_t * temp_pointers[BTREE_ORDER];
@@ -438,7 +613,7 @@ RC index_btree::split_lf_insert(glob_param params, bt_node * leaf, idx_key_t key
         leaf->pointers[i] = temp_pointers[i];
         leaf->keys[i] = temp_keys[i];
         leaf->num_keys++;
-		M_ASSERT( (leaf->num_keys < order), "too many keys in leaf" );
+		M_ASSERT_V( (leaf->num_keys < order), "too many keys in leaf" );
     }
 	for (i = split, j = 0; i < order; i++, j++) {
 //        new_leaf->pointers[j] = new_leaf->pointers[i];
@@ -446,12 +621,18 @@ RC index_btree::split_lf_insert(glob_param params, bt_node * leaf, idx_key_t key
         new_leaf->pointers[j] = temp_pointers[i];
         new_leaf->keys[j] = temp_keys[i];
         new_leaf->num_keys++;
-		M_ASSERT( (leaf->num_keys < order), "too many keys in leaf" );
+		M_ASSERT_V( (leaf->num_keys < order), "too many keys in leaf" );
     }
 
 //    delete temp_pointers;
 //    delete temp_keys;
 
+	if (leaf->next == NULL)  {
+		tails[part_id] = new_leaf;
+	} else {
+		leaf->next->prev = new_leaf;
+	}
+	new_leaf->prev = leaf;
 	new_leaf->next = leaf->next;
 	leaf->next = new_leaf;
 
@@ -463,6 +644,14 @@ RC index_btree::split_lf_insert(glob_param params, bt_node * leaf, idx_key_t key
 
     new_leaf->parent = leaf->parent;
     new_key = new_leaf->keys[0];
+
+	// To avoid txns wait & unlock wrong leaf rows, change the row from each other.
+#if TXN_TYPE == TPCC_ALL
+	row_t * temp_row;
+	temp_row = leaf->row;
+	leaf->row = new_leaf->row;
+	new_leaf->row = temp_row;
+#endif
 
     rc = insert_into_parent(params, leaf, new_key, new_leaf);
 	return rc;
@@ -480,9 +669,9 @@ RC index_btree::insert_into_parent(glob_param params, bt_node *left, idx_key_t k
   while (parent->keys[insert_idx] < key && insert_idx < parent->num_keys) insert_idx++;
 	// the parent has enough space, just insert into it
     if (parent->num_keys < order - 1) {
-		for (UInt32 i = parent->num_keys-1; i >= insert_idx; i--) {
-			parent->keys[i + 1] = parent->keys[i];
-			parent->pointers[i+2] = parent->pointers[i+1];
+		for (UInt32 i = parent->num_keys; i > insert_idx; i--) {
+			parent->keys[i] = parent->keys[i - 1];
+			parent->pointers[i + 1] = parent->pointers[i];
 		}
 		parent->num_keys ++;
 		parent->keys[insert_idx] = key;
@@ -510,11 +699,12 @@ RC index_btree::insert_into_new_root(glob_param params, bt_node *left, idx_key_t
     new_root->pointers[0] = left;
     new_root->pointers[1] = right;
     new_root->num_keys++;
-	M_ASSERT( (new_root->num_keys < order), "too many keys in leaf" );
+	M_ASSERT_V( (new_root->num_keys < order), "too many keys in leaf" );
     new_root->parent = NULL;
     left->parent = new_root;
     right->parent = new_root;
 	left->next = right;
+	right->prev = left;
 
 	this->roots[part_id] = new_root;
 	// TODO this new root is not latched, at this point, other threads
@@ -575,9 +765,13 @@ RC index_btree::split_nl_insert(glob_param params, bt_node *old_node, UInt32 lef
         old_node->pointers[i] = temp_pointers[i];
         old_node->keys[i] = temp_keys[i];
         old_node->num_keys++;
-		M_ASSERT( (old_node->num_keys < order), "too many keys in leaf" );
+		M_ASSERT_V( (old_node->num_keys < order), "too many keys in leaf" );
     }
 
+	if (old_node->next != NULL) {
+		old_node->next->prev = new_node;
+	}
+	new_node->prev = old_node;
 	new_node->next = old_node->next;
 	old_node->next = new_node;
 
@@ -591,7 +785,7 @@ RC index_btree::split_nl_insert(glob_param params, bt_node *old_node, UInt32 lef
 //        new_node->pointers[j] = new_node->pointers[i];
 //        new_node->keys[j] = new_node->keys[i];
         new_node->num_keys++;
-		M_ASSERT( (old_node->num_keys < order), "too many keys in leaf" );
+		M_ASSERT_V( (old_node->num_keys < order), "too many keys in leaf" );
     }
     new_node->pointers[j] = temp_pointers[i];
 //    new_node->pointers[j] = new_node->pointers[i];

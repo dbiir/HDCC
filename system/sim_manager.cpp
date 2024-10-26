@@ -91,6 +91,8 @@ bool SimManager::is_warmup_done() {
 	#if WORKLOAD == DA
 		return true;
 	#endif
+	if(!sim_init_done)
+		return false;
 	if(warmup)
 		return true;
 	bool done = ((get_sys_clock() - run_starttime) >= g_warmup_timer);

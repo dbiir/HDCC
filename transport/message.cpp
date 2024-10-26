@@ -670,6 +670,7 @@ uint64_t TPCCClientQueryMessage::get_size() {
   size += sizeof(bool) * 3;
   size += sizeof(size_t);
   size += sizeof(Item_no) * items.size();
+  size += sizeof(uint64_t) * 4;
   return size;
 }
 
@@ -697,6 +698,12 @@ void TPCCClientQueryMessage::copy_from_query(BaseQuery * query) {
   remote = tpcc_query->remote;
   ol_cnt = tpcc_query->ol_cnt;
   o_entry_d = tpcc_query->o_entry_d;
+  
+  // others
+  o_carrier_id = tpcc_query->o_carrier_id;
+  ol_delivery_d = tpcc_query->ol_delivery_d;
+  o_id = tpcc_query->o_id;
+  threshold = tpcc_query->threshold;
 }
 
 
@@ -717,6 +724,14 @@ void TPCCClientQueryMessage::copy_to_txn(TxnManager * txn) {
     ((TPCCTxnManager*)txn)->state = TPCC_PAYMENT0;
   else if (tpcc_query->txn_type == TPCC_NEW_ORDER)
     ((TPCCTxnManager*)txn)->state = TPCC_NEWORDER0;
+  else if (tpcc_query->txn_type == TPCC_ORDER_STATUS)
+    ((TPCCTxnManager*)txn)->state = TPCC_ORDER_STATUS0;
+  else if (tpcc_query->txn_type == TPCC_DELIVERY)
+    ((TPCCTxnManager*)txn)->state = TPCC_DELIVERY0;
+  else if (tpcc_query->txn_type == TPCC_STOCK_LEVEL)
+    ((TPCCTxnManager*)txn)->state = TPCC_STOCK_LEVEL0;
+  else
+    assert(false);
 	// common txn input for both payment & new-order
   tpcc_query->w_id = w_id;
   tpcc_query->d_id = d_id;
@@ -737,6 +752,11 @@ void TPCCClientQueryMessage::copy_to_txn(TxnManager * txn) {
   tpcc_query->ol_cnt = ol_cnt;
   tpcc_query->o_entry_d = o_entry_d;
 
+  // others
+  tpcc_query->o_id = o_id;
+  tpcc_query->o_carrier_id = o_carrier_id;
+  tpcc_query->ol_delivery_d = ol_delivery_d;
+  tpcc_query->threshold = threshold;
 }
 
 void TPCCClientQueryMessage::copy_from_buf(char * buf) {
@@ -773,6 +793,11 @@ void TPCCClientQueryMessage::copy_from_buf(char * buf) {
   COPY_VAL(ol_cnt,buf,ptr);
   COPY_VAL(o_entry_d,buf,ptr);
 
+  COPY_VAL(o_id,buf,ptr);
+  COPY_VAL(o_carrier_id,buf,ptr);
+  COPY_VAL(ol_delivery_d,buf,ptr);
+  COPY_VAL(threshold,buf,ptr);
+
  assert(ptr == get_size());
 }
 
@@ -805,7 +830,13 @@ void TPCCClientQueryMessage::copy_to_buf(char * buf) {
   COPY_BUF(buf,remote,ptr);
   COPY_BUF(buf,ol_cnt,ptr);
   COPY_BUF(buf,o_entry_d,ptr);
- assert(ptr == get_size());
+
+  COPY_BUF(buf,o_id,ptr);
+  COPY_BUF(buf,o_carrier_id,ptr);
+  COPY_BUF(buf,ol_delivery_d,ptr);
+  COPY_BUF(buf,threshold,ptr);
+
+  assert(ptr == get_size());
 }
 
 /************************/

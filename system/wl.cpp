@@ -28,124 +28,154 @@
 RC Workload::init() { return RCOK; }
 
 RC Workload::init_schema(const char * schema_file) {
-    assert(sizeof(uint64_t) == 8);
-    assert(sizeof(double) == 8);
+  assert(sizeof(uint64_t) == 8);
+  assert(sizeof(double) == 8);
 	string line;
   uint32_t id = 0;
 	ifstream fin(schema_file);
     Catalog * schema;
     while (getline(fin, line)) {
-		if (line.compare(0, 6, "TABLE=") == 0) {
-			string tname(&line[6]);
-			void * tmp = new char[CL_SIZE * 2 + sizeof(Catalog)];
-            schema = (Catalog *) ((UInt64)tmp + CL_SIZE);
-			getline(fin, line);
-      cout<<"Init table "<<tname<<endl;
-			int col_count = 0;
-			// Read all fields for this table.
-			vector<string> lines;
-			while (line.length() > 1) {
-				lines.push_back(line);
-        cout<<line<<endl;
-				getline(fin, line);
-			}
-      cout<<"Has "<<lines.size()<<" column"<<endl;
+      if (line.compare(0, 6, "TABLE=") == 0) {
+        string tname(&line[6]);
+        void * tmp = new char[CL_SIZE * 2 + sizeof(Catalog)];
+              schema = (Catalog *) ((UInt64)tmp + CL_SIZE);
+        getline(fin, line);
+        cout<<"Init table "<<tname<<endl;
+        int col_count = 0;
+        // Read all fields for this table.
+        vector<string> lines;
+        while (line.length() > 1) {
+          lines.push_back(line);
+          cout<<line<<endl;
+          getline(fin, line);
+        }
+        cout<<"Has "<<lines.size()<<" column"<<endl;
 
-			schema->init( tname.c_str(), id++, lines.size() );
-			for (UInt32 i = 0; i < lines.size(); i++) {
-				string line = lines[i];
-				vector<string> items;
+        schema->init( tname.c_str(), id++, lines.size() );
+        for (UInt32 i = 0; i < lines.size(); i++) {
+          string line = lines[i];
+          vector<string> items;
 
-        char * line_cstr = new char [line.length()+1];
-        strcpy(line_cstr,line.c_str());
-        int size = atoi(strtok(line_cstr,","));
-        char * type = strtok(NULL,",");
-        char * name = strtok(NULL,",");
+          char * line_cstr = new char [line.length()+1];
+          strcpy(line_cstr,line.c_str());
+          int size = atoi(strtok(line_cstr,","));
+          char * type = strtok(NULL,",");
+          char * name = strtok(NULL,",");
 
-        schema->add_col(name, size, type);
-				col_count ++;
-			}
-			tmp = new char[CL_SIZE * 2 + sizeof(table_t)];
-            table_t * cur_tab = (table_t *) ((UInt64)tmp + CL_SIZE);
-			cur_tab->init(schema);
-			tables[tname] = cur_tab;
-        } else if (!line.compare(0, 6, "INDEX=")) {
-			string iname(&line[6]);
-			getline(fin, line);
-      cout<<"Init index "<<iname<<endl;
-			vector<string> items;
-			string token;
-			size_t pos;
-			while (line.length() != 0) {
-				pos = line.find(","); // != std::string::npos) {
-        if (pos == string::npos) pos = line.length();
-	    		token = line.substr(0, pos);
-				items.push_back(token);
-		    	line.erase(0, pos + 1);
-        cout<<"token "<<token<<endl;
-			}
+          schema->add_col(name, size, type);
+          col_count ++;
+        }
+        tmp = new char[CL_SIZE * 2 + sizeof(table_t)];
+              table_t * cur_tab = (table_t *) ((UInt64)tmp + CL_SIZE);
+        cur_tab->init(schema);
+        tables[tname] = cur_tab;
+      } else if (!line.compare(0, 6, "INDEX=")) {
+        string iname(&line[6]);
+        getline(fin, line);
+        cout<<"Init index "<<iname<<endl;
+        vector<string> items;
+        string token;
+        size_t pos;
+        while (line.length() != 0) {
+          pos = line.find(","); // != std::string::npos) {
+          if (pos == string::npos) pos = line.length();
+            token = line.substr(0, pos);
+          items.push_back(token);
+            line.erase(0, pos + 1);
+          cout<<"token "<<token<<endl;
+        }
 
-			string tname(items[0]);
-			int field_cnt = items.size() - 1;
-			uint64_t * fields = new uint64_t [field_cnt];
-      for (int i = 0; i < field_cnt; i++) fields[i] = atoi(items[i + 1].c_str());
-			INDEX * index = new INDEX;
-	    int part_cnt __attribute__ ((unused));
-			part_cnt = (CENTRAL_INDEX)? 1 : g_part_cnt;
+        string tname(items[0]);
+        if (tname[0] == '\t') {
+          tname = tname.substr(1);
+        }
+        int field_cnt = items.size() - 1;
+        uint64_t * fields = new uint64_t [field_cnt];
+        for (int i = 0; i < field_cnt; i++) fields[i] = atoi(items[i + 1].c_str());
+#if WORKLOAD == TPCC && TXN_TYPE == TPCC_ALL
+        if (!iname.compare(0, 9, "ORDER_IDX")) {
+          index_btree * index = new index_btree;
+          int part_cnt = (CENTRAL_INDEX)? 1 : g_num_wh * g_dist_per_wh;
+          index->init(part_cnt, tables[tname]);
+          indexes[iname] = index;
+          printf("iname:%s init over\n",iname.c_str());
+          continue;
+        }
+        if (!iname.compare(0, 14, "ORDER-LINE_IDX")) {
+          index_btree * index = new index_btree;
+          int part_cnt = (CENTRAL_INDEX)? 1 : g_num_wh * g_dist_per_wh;
+          index->init(part_cnt, tables[tname]);
+          indexes[iname] = index;
+          printf("iname:%s init over\n",iname.c_str());
+          continue;
+        }
+        if (!iname.compare(0, 13, "NEW-ORDER_IDX")) {
+          index_btree * index = new index_btree;
+          int part_cnt = (CENTRAL_INDEX)? 1 : g_num_wh * g_dist_per_wh;
+          index->init(part_cnt, tables[tname]);
+          indexes[iname] = index;
+          printf("iname:%s init over\n",iname.c_str());
+          continue;
+        }
+#endif
+        INDEX * index = new INDEX;
 
-      uint64_t table_size = g_synth_table_size;
+        int part_cnt __attribute__ ((unused));
+        part_cnt = (CENTRAL_INDEX)? 1 : g_part_cnt;
+
+        uint64_t table_size __attribute__ ((unused)) = g_synth_table_size;
 #if WORKLOAD == TPCC
-      if ( !tname.compare(1, 9, "WAREHOUSE") ) {
-        table_size = g_num_wh / g_part_cnt;
-        printf("WAREHOUSE size %ld\n",table_size);
-      } else if ( !tname.compare(1, 8, "DISTRICT") ) {
-        table_size = g_num_wh / g_part_cnt * g_dist_per_wh;
-        printf("DISTRICT size %ld\n",table_size);
-      } else if ( !tname.compare(1, 8, "CUSTOMER") ) {
-        table_size = g_num_wh / g_part_cnt * g_dist_per_wh * g_cust_per_dist;
-        printf("CUSTOMER size %ld\n",table_size);
-      } else if ( !tname.compare(1, 7, "HISTORY") ) {
-        table_size = g_num_wh / g_part_cnt * g_dist_per_wh * g_cust_per_dist;
-        printf("HISTORY size %ld\n",table_size);
-      } else if ( !tname.compare(1, 5, "ORDER") ) {
-        table_size = g_num_wh / g_part_cnt * g_dist_per_wh * g_cust_per_dist;
-        printf("ORDER size %ld\n",table_size);
-      } else if ( !tname.compare(1, 4, "ITEM") ) {
-        table_size = g_max_items;
-        printf("ITEM size %ld\n",table_size);
-      } else if ( !tname.compare(1, 5, "STOCK") ) {
-        table_size = g_num_wh / g_part_cnt * g_max_items;
-        printf("STOCK size %ld\n",table_size);
-      }
+        if ( !tname.compare(1, 9, "WAREHOUSE") ) {
+          table_size = g_num_wh / g_part_cnt;
+          printf("WAREHOUSE size %ld\n",table_size);
+        } else if ( !tname.compare(1, 8, "DISTRICT") ) {
+          table_size = g_num_wh / g_part_cnt * g_dist_per_wh;
+          printf("DISTRICT size %ld\n",table_size);
+        } else if ( !tname.compare(1, 8, "CUSTOMER") ) {
+          table_size = g_num_wh / g_part_cnt * g_dist_per_wh * g_cust_per_dist;
+          printf("CUSTOMER size %ld\n",table_size);
+        } else if ( !tname.compare(1, 7, "HISTORY") ) {
+          table_size = g_num_wh / g_part_cnt * g_dist_per_wh * g_cust_per_dist;
+          printf("HISTORY size %ld\n",table_size);
+        } else if ( !tname.compare(1, 5, "ORDER") ) {
+          table_size = g_num_wh / g_part_cnt * g_dist_per_wh * g_cust_per_dist;
+          printf("ORDER size %ld\n",table_size);
+        } else if ( !tname.compare(1, 4, "ITEM") ) {
+          table_size = g_max_items;
+          printf("ITEM size %ld\n",table_size);
+        } else if ( !tname.compare(1, 5, "STOCK") ) {
+          table_size = g_num_wh / g_part_cnt * g_max_items;
+          printf("STOCK size %ld\n",table_size);
+        }
 #elif WORKLOAD == PPS
-      if ( !tname.compare(1, 5, "PARTS") ) {
-        table_size = MAX_PPS_PART_KEY;
-      } else if (!tname.compare(1, 8, "PRODUCTS")) {
-        table_size = MAX_PPS_PRODUCT_KEY;
-      } else if (!tname.compare(1, 9, "SUPPLIERS")) {
-        table_size = MAX_PPS_SUPPLIER_KEY;
-      } else if (!tname.compare(1, 8, "SUPPLIES")) {
-        table_size = MAX_PPS_PRODUCT_KEY;
-      } else if (!tname.compare(1, 4, "USES")) {
-        table_size = MAX_PPS_SUPPLIER_KEY;
-      }
+        if ( !tname.compare(1, 5, "PARTS") ) {
+          table_size = MAX_PPS_PART_KEY;
+        } else if (!tname.compare(1, 8, "PRODUCTS")) {
+          table_size = MAX_PPS_PRODUCT_KEY;
+        } else if (!tname.compare(1, 9, "SUPPLIERS")) {
+          table_size = MAX_PPS_SUPPLIER_KEY;
+        } else if (!tname.compare(1, 8, "SUPPLIES")) {
+          table_size = MAX_PPS_PRODUCT_KEY;
+        } else if (!tname.compare(1, 4, "USES")) {
+          table_size = MAX_PPS_SUPPLIER_KEY;
+        }
 #elif WORKLOAD == DA
-      if (!tname.compare(1, 5, "DAtab")) {
-        table_size = MAX_DA_TABLE_SIZE;
-      }
+        if (!tname.compare(1, 5, "DAtab")) {
+          table_size = MAX_DA_TABLE_SIZE;
+        }
 #else
-      table_size = g_synth_table_size / g_part_cnt;
+        table_size = g_synth_table_size / g_part_cnt;
 #endif
 
 #if INDEX_STRUCT == IDX_HASH
-			index->init(1024, tables[tname], table_size);
-			//index->init(part_cnt*1024, tables[tname], table_size);
+        index->init(1024, tables[tname], table_size);
+        //index->init(part_cnt*1024, tables[tname], table_size);
 #else
-			index->init(part_cnt, tables[tname]);
+        index->init(part_cnt, tables[tname]);
 #endif
-			indexes[iname] = index;
-      printf("iname:%s init over\n",iname.c_str());
-		}
+        indexes[iname] = index;
+        printf("iname:%s init over\n",iname.c_str());
+      }
     }
 	fin.close();
 	return RCOK;

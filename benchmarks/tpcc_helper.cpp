@@ -23,7 +23,11 @@ uint64_t custKey(uint64_t c_id, uint64_t c_d_id, uint64_t c_w_id) {
 }
 
 uint64_t orderlineKey(uint64_t w_id, uint64_t d_id, uint64_t o_id) {
-	return distKey(d_id, w_id) * g_cust_per_dist + o_id;
+	return distKey(d_id, w_id) * g_cust_per_dist * 10000000 + o_id;
+}
+
+uint64_t neworderKey(uint64_t w_id, uint64_t d_id, uint64_t o_id) {
+	return distKey(d_id, w_id) * g_cust_per_dist * 10000000 + o_id;
 }
 
 uint64_t orderPrimaryKey(uint64_t w_id, uint64_t d_id, uint64_t o_id) {
@@ -137,4 +141,8 @@ uint64_t MakeNumberString(int min, int max, char* str) {
 uint64_t wh_to_part(uint64_t wid) {
 	assert(g_part_cnt <= g_num_wh);
 	return (wid-1) % g_part_cnt ;
+}
+
+uint64_t wd_to_part(uint64_t wid, uint64_t did) {
+  return (wid-1) * g_dist_per_wh + (did-1);
 }

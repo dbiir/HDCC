@@ -36,7 +36,8 @@ class Workload
 public:
 	// tables indexed by table name
   map<string, table_t *> tables;
-  map<string, INDEX *> indexes;
+  // map<string, INDEX *> indexes;
+  map<string, index_base *> indexes;
 
   void index_delete_all();
 

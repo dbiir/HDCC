@@ -371,6 +371,11 @@ public:
   uint64_t ol_cnt;
   uint64_t o_entry_d;
 
+  // others
+  uint64_t o_id;
+  uint64_t o_carrier_id;
+  uint64_t ol_delivery_d;
+  uint64_t threshold;
 };
 
 class PPSClientQueryMessage : public ClientQueryMessage {

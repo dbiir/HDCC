@@ -211,6 +211,11 @@ public:
   double mbuf_send_intv_time;
   double msg_copy_output_time;
 
+  // Btree
+  double btree_traversal_time;
+  double btree_insert_time;
+  double btree_read_time;
+
   //stats every interval
   uint64_t * tputs;
   uint64_t * hdcc_silo_cnts;

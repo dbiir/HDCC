@@ -157,6 +157,25 @@ RC IndexHash::index_read(idx_key_t key, itemid_t * &item,
 	return rc;
 }
 
+
+RC IndexHash::index_read(idx_key_t key, itemid_t *&item, int part_id, int thd_id, TxnManager * txn) {
+	uint64_t bkt_idx = hash(key);
+	assert(bkt_idx < _bucket_cnt_per_part);
+	//BucketHeader * cur_bkt = &_buckets[part_id][bkt_idx];
+	BucketHeader * cur_bkt = &_buckets[0][bkt_idx];
+	RC rc = RCOK;
+	// 1. get the sh latch
+//	get_latch(cur_bkt);
+
+
+	cur_bkt->read_item(key, item);
+
+	// 3. release the latch
+//	release_latch(cur_bkt);
+	return rc;
+}
+
+
 /************** BucketHeader Operations ******************/
 
 void BucketHeader::init() {

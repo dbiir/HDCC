@@ -23,6 +23,7 @@
 uint64_t distKey(uint64_t d_id, uint64_t d_w_id);
 uint64_t custKey(uint64_t c_id, uint64_t c_d_id, uint64_t c_w_id);
 uint64_t orderlineKey(uint64_t w_id, uint64_t d_id, uint64_t o_id);
+uint64_t neworderKey(uint64_t w_id, uint64_t d_id, uint64_t o_id);
 uint64_t orderPrimaryKey(uint64_t w_id, uint64_t d_id, uint64_t o_id);
 // non-primary key
 uint64_t custNPKey(char * c_last, uint64_t c_d_id, uint64_t c_w_id);
@@ -52,5 +53,6 @@ uint64_t MakeAlphaString(int min, int max, char * str);
 uint64_t MakeNumberString(int min, int max, char* str);
 
 uint64_t wh_to_part(uint64_t wid);
+uint64_t wd_to_part(uint64_t wid, uint64_t did);
 
 #endif

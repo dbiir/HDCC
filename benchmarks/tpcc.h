@@ -44,10 +44,33 @@ enum TPCCRemTxnType {
   TPCC_NEWORDER3,
   TPCC_NEWORDER4,
   TPCC_NEWORDER5,
+  TPCC_NEWORDER5_1,
+  TPCC_NEWORDER5_2,
+  TPCC_NEWORDER9_1,
   TPCC_NEWORDER6,
   TPCC_NEWORDER7,
   TPCC_NEWORDER8,
   TPCC_NEWORDER9,
+  TPCC_ORDER_STATUS0,
+  TPCC_ORDER_STATUS1,
+  TPCC_ORDER_STATUS2,
+  TPCC_ORDER_STATUS3,
+  TPCC_DELIVERY0,
+  TPCC_DELIVERY1,
+  TPCC_DELIVERY2,
+  TPCC_DELIVERY3,
+  TPCC_DELIVERY4,
+  TPCC_DELIVERY5,
+  TPCC_DELIVERY6,
+  TPCC_DELIVERY7,
+  TPCC_DELIVERY8,
+  TPCC_DELIVERY9,
+  TPCC_STOCK_LEVEL0,
+  TPCC_STOCK_LEVEL1,
+  TPCC_STOCK_LEVEL2,
+  TPCC_STOCK_LEVEL3,
+  TPCC_STOCK_LEVEL4,
+  TPCC_STOCK_LEVEL5,
   TPCC_FIN,
   TPCC_RDONE
 };
@@ -75,11 +98,20 @@ public:
 	INDEX * 	i_customer_id;
 	INDEX * 	i_customer_last;
 	INDEX * 	i_stock;
-	INDEX * 	i_order; // key = (w_id, d_id, o_id)
+  INDEX *   i_history;
+  INDEX *   i_order_cust;
+#if WORKLOAD == TPCC && TXN_TYPE == TPCC_ALL
+  index_btree * i_order; // key = (w_id, d_id, o_id)
+  index_btree * i_orderline; // key = (w_id, d_id, o_id)
+  index_btree * i_neworder; // key = (w_id, d_id, o_id)
+#else
+  INDEX * 	i_order; // key = (w_id, d_id, o_id)
+  INDEX * 	i_orderline; // key = (w_id, d_id, o_id)
+  INDEX *   i_neworder; // key = (w_id, d_id, o_id)
+#endif
 //	INDEX * 	i_order_wdo; // key = (w_id, d_id, o_id)
 //	INDEX * 	i_order_wdc; // key = (w_id, d_id, c_id)
-	INDEX * 	i_orderline; // key = (w_id, d_id, o_id)
-	INDEX * 	i_orderline_wd; // key = (w_id, d_id).
+	// INDEX * 	i_orderline_wd; // key = (w_id, d_id).
 
 	// XXX HACK
 	// For delivary. Only one txn can be delivering a warehouse at a time.
@@ -101,7 +133,7 @@ private:
 	UInt32 perm_count;
 	uint64_t * perm_c_id;
 	void init_permutation();
-	uint64_t get_permutation();
+	uint64_t get_permutation(uint64_t count);
 
 	static void * threadInitItem(void * This);
 	static void * threadInitWh(void * This);
@@ -141,8 +173,11 @@ private:
 	TPCCWorkload * _wl;
 	volatile RC _rc;
   row_t * row;
+  itemid_t * items;
 
   uint64_t next_item_id;
+
+  row_t * district_row;
 
 void next_tpcc_state();
 RC run_txn_state();
@@ -179,6 +214,10 @@ RC run_txn_state();
                  uint64_t o_entry_d, uint64_t* o_id, row_t*& r_dist_local);
   RC new_order_5(uint64_t w_id, uint64_t d_id, uint64_t c_id, bool remote, uint64_t ol_cnt,
                  uint64_t o_entry_d, uint64_t* o_id, row_t* r_dist_local);
+  RC new_order_5_1(uint64_t w_id, uint64_t d_id, uint64_t c_id, bool remote, uint64_t ol_cnt,
+                 uint64_t o_entry_d, uint64_t* o_id, row_t* r_dist_local);
+  RC new_order_5_2(uint64_t w_id, uint64_t d_id, uint64_t c_id, bool remote, uint64_t ol_cnt,
+                 uint64_t o_entry_d, uint64_t* o_id, row_t* r_dist_local);
 	RC new_order_6(uint64_t ol_i_id, row_t *& r_item_local);
 	RC new_order_7(uint64_t ol_i_id, row_t * r_item_local);
   RC new_order_8(uint64_t w_id, uint64_t d_id, bool remote, uint64_t ol_i_id,
@@ -187,9 +226,28 @@ RC run_txn_state();
   RC new_order_9(uint64_t w_id, uint64_t d_id, bool remote, uint64_t ol_i_id,
                  uint64_t ol_supply_w_id, uint64_t ol_quantity, uint64_t ol_number,
                  uint64_t ol_amount, uint64_t o_id, row_t* r_stock_local);
-	RC run_order_status(TPCCQuery * query);
-	RC run_delivery(TPCCQuery * query);
-	RC run_stock_level(TPCCQuery * query);
+  RC new_order_9_1(uint64_t w_id, uint64_t d_id, bool remote, uint64_t o_id, row_t* r_stock_local);
+	RC run_order_status_0(uint64_t w_id, uint64_t d_id, bool by_last_name, uint64_t c_id, char* c_last,
+                   row_t*& r_cust_local);
+  RC run_order_status_1(uint64_t w_id, uint64_t d_id, uint64_t c_id, uint64_t o_id, row_t*& r_row);
+  RC run_order_status_2(uint64_t w_id, uint64_t d_id, uint64_t o_id, itemid_t * items, row_t*& l_order_local);
+  RC run_order_status_3(row_t * l_orderline_local);
+  RC run_delivery_0(uint64_t w_id, uint64_t d_id, uint64_t &o_id, row_t*& l_row);
+  RC run_delivery_1(uint64_t &no_o_id, row_t *&r_new_order_local);
+  RC run_delivery_2(uint64_t &no_o_id, row_t *&r_new_order_local);
+  RC run_delivery_3(uint64_t o_w_id, uint64_t o_d_id, uint64_t no_o_id, row_t *&l_order_local);
+  RC run_delivery_4(uint64_t o_carrier_id, uint64_t &c_id, row_t *&l_order_local);
+  RC run_delivery_5(uint64_t o_w_id, uint64_t o_d_id, uint64_t no_o_id, itemid_t *& items);
+  RC run_delivery_6(row_t *&l_orderline_local);
+  RC run_delivery_7(uint64_t ol_delivery_d, uint64_t &sum_amount, row_t *&l_orderline_local);
+  RC run_delivery_8(uint64_t c_w_id, uint64_t c_d_id, uint64_t c_id, row_t *&r_cust_local);
+  RC run_delivery_9(uint64_t &sum_amount, row_t *&r_cust_local);
+  RC run_stock_level_0(uint64_t w_id, uint64_t d_id, row_t *&r_dist_local);
+  RC run_stock_level_1(uint64_t &d_next_o_id, row_t *&r_dist_local);
+  RC run_stock_level_2(uint64_t w_id, uint64_t d_id, uint64_t d_next_o_id, bt_node *& leaf, row_t *&r_leaf_local);
+  RC run_stock_level_3(uint64_t w_id, uint64_t d_id, uint64_t d_next_o_id, row_t *&r_orderline_local);
+  RC run_stock_level_4(uint64_t w_id, uint64_t &s_i_id, row_t *&r_orderline_local);
+  RC run_stock_level_5(uint64_t w_id, uint64_t s_i_id, uint64_t threshold, set<uint64_t> &s_i_ids, row_t *&r_local);
 };
 
 #endif

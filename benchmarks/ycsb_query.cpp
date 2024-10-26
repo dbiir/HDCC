@@ -359,7 +359,6 @@ BaseQuery * YCSBQueryGenerator::gen_requests_zipf(uint64_t home_partition_id, Wo
 	uint64_t table_size = g_synth_table_size / g_part_cnt;
 
 	double r_twr = (double)(mrand->next() % 10000) / 10000;
-	double r_mpt = (double)(mrand->next() % 10000) / 10000;
 
 	int rid = 0;
 	for (UInt32 i = 0; i < g_req_per_query; i ++) {
@@ -378,6 +377,7 @@ BaseQuery * YCSBQueryGenerator::gen_requests_zipf(uint64_t home_partition_id, Wo
 		if ( FIRST_PART_LOCAL && rid == 0) {
 			partition_id = home_partition_id;
 		} else {
+			double r_mpt = (double)(mrand->next() % 10000) / 10000;
 			if(r_mpt < g_mpr){
 				// txn that accesses multi partitions
 				partition_id = mrand->next() % g_part_cnt;

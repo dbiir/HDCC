@@ -266,6 +266,7 @@ void Transaction::init() {
 	insert_rows.init(g_max_items_per_txn + 10);
 	DEBUG_M("Transaction::reset array accesses\n");
 	accesses.init(MAX_ROW_PER_TXN);
+	insert_items = NULL;
 
 	reset(0);
 }
@@ -279,6 +280,7 @@ void Transaction::reset(uint64_t thd_id) {
 	row_cnt = 0;
 	twopc_state = START;
 	rc = RCOK;
+	insert_items = NULL;
 }
 
 void Transaction::release_accesses(uint64_t thd_id) {
@@ -287,9 +289,11 @@ void Transaction::release_accesses(uint64_t thd_id) {
 	}
 }
 
+#if TXN_TYPE == TPCC_ALL
 void Transaction::release_inserts(uint64_t thd_id) {
+#if CC_ALG != CALVIN && CC_ALG != HDCC && CC_ALG != SILO
 	for(uint64_t i = 0; i < insert_rows.size(); i++) {
-	row_t * row = insert_rows[i];
+		row_t * row = insert_rows[i].first;
 #if CC_ALG != MAAT && CC_ALG != OCC && CC_ALG != WOOKONG && \
 		CC_ALG != TICTOC && CC_ALG != BOCC && CC_ALG != FOCC && CC_ALG != DTA && CC_ALG != DLI_MVCC_OCC && \
 		CC_ALG != DLI_MVCC_BASE && CC_ALG != DLI_DTA && CC_ALG != DLI_DTA2 && CC_ALG != DLI_DTA3 && \
@@ -301,7 +305,43 @@ void Transaction::release_inserts(uint64_t thd_id) {
 		DEBUG_M("Transaction::release insert_rows free\n")
 		row_pool.put(thd_id,row);
 	}
+	if (insert_items != NULL) {
+		while (insert_items->next != NULL) {
+			itemid_t * item = insert_items->next;
+			mem_allocator.free(insert_items, 0);
+			insert_items = item;
+		}
+		mem_allocator.free(insert_items, 0);
+		insert_items = NULL;
+	}
+#endif
 }
+#else
+void Transaction::release_inserts(uint64_t thd_id) {
+	for(uint64_t i = 0; i < insert_rows.size(); i++) {
+		row_t * row = insert_rows[i];
+#if CC_ALG != MAAT && CC_ALG != OCC && CC_ALG != WOOKONG && \
+		CC_ALG != TICTOC && CC_ALG != BOCC && CC_ALG != FOCC && CC_ALG != DTA && CC_ALG != DLI_MVCC_OCC && \
+		CC_ALG != DLI_MVCC_BASE && CC_ALG != DLI_DTA && CC_ALG != DLI_DTA2 && CC_ALG != DLI_DTA3 && \
+		CC_ALG != DLI_BASE && CC_ALG != DLI_OCC
+		DEBUG_M("TxnManager::cleanup row->manager free\n");
+		mem_allocator.free(row->manager, 0);
+#endif
+		row->free_row();
+		DEBUG_M("Transaction::release insert_rows free\n")
+		row_pool.put(thd_id,row);
+	}
+	if (insert_items != NULL) {
+		while (insert_items->next != NULL) {
+			itemid_t * item = insert_items->next;
+			mem_allocator.free(insert_items, 0);
+			insert_items = item;
+		}
+		mem_allocator.free(insert_items, 0);
+		insert_items = NULL;
+	}
+}
+#endif
 
 void Transaction::release(uint64_t thd_id) {
 	DEBUG("Transaction release\n");
@@ -1454,18 +1494,88 @@ RC TxnManager::get_row_post_wait(row_t *& row_rtn) {
 	return RCOK;
 }
 
+#if TXN_TYPE == TPCC_ALL
+RC TxnManager::insert_item(itemid_t * item, index_btree * index) {
+#if CC_ALG == CALVIN
+	row_t * row = (row_t *) item->location;
+	index->index_insert(row->get_primary_key(), item, row->get_part_id(), this);
+#elif CC_ALG == HDCC
+	if (algo == CALVIN) {
+		row_t * row = (row_t *) item->location;
+		index->index_insert(row->get_primary_key(), item, row->get_part_id(), this);
+	} else {
+		txn->insert_items = item;
+	}
+#elif CC_ALG == SILO
+	txn->insert_items = item;
+#else
+	txn->insert_items = item;
+#endif
+	return RCOK;
+}
+#else
+RC TxnManager::insert_item(itemid_t * item, INDEX * index) {
+	txn->insert_items = item;
+	return RCOK;
+}
+#endif
+
+#if TXN_TYPE == TPCC_ALL
+RC TxnManager::insert_row(row_t * row, index_btree * index) {
+#if CC_ALG == CALVIN
+	itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+	m_item->init();
+	m_item->type = DT_row;
+	m_item->location = row;
+	m_item->valid = true;
+	index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
+#elif CC_ALG == HDCC
+	if (algo == CALVIN) {
+		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+		m_item->init();
+		m_item->type = DT_row;
+		m_item->location = row;
+		m_item->valid = true;
+		index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
+	} else {
+		bool exist = index->index_exist(row->get_primary_key(), row->get_part_id(), this);
+		if (exist) {
+			return Abort;
+		}
+		txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
+	}
+#elif CC_ALG == SILO
+	bool exist = index->index_exist(row->get_primary_key(), row->get_part_id(), this);
+	if (exist) {
+		return Abort;
+	}
+	txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
+#else
+	txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
+#endif
+	return RCOK;
+}
+#else
 // This function is useless
 void TxnManager::insert_row(row_t * row, table_t * table) {
 	if (CC_ALG == HSTORE || CC_ALG == HSTORE_SPEC) return;
 	assert(txn->insert_rows.size() < MAX_ROW_PER_TXN);
 	txn->insert_rows.add(row);
 }
+#endif
+
+RC TxnManager::delete_row(row_t * row, index_btree * index) {
+#if CC_ALG == CALVIN
+	index->index_remove(row->get_primary_key(), row->get_part_id());
+#endif
+	return RCOK;
+}
 
 itemid_t *TxnManager::index_read(INDEX *index, idx_key_t key, int part_id) {
 	uint64_t starttime = get_sys_clock();
 
 	itemid_t * item;
-	index->index_read(key, item, part_id, get_thd_id());
+	index->index_read(key, item, part_id, get_thd_id(), this);
 
 	uint64_t t = get_sys_clock() - starttime;
 	INC_STATS(get_thd_id(), txn_index_time, t);

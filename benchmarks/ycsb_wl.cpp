@@ -62,7 +62,7 @@ RC YCSBWorkload::init() {
 RC YCSBWorkload::init_schema(const char * schema_file) {
 	Workload::init_schema(schema_file);
 	the_table = tables["MAIN_TABLE"];
-	the_index = indexes["MAIN_INDEX"];
+	the_index = (INDEX *)indexes["MAIN_INDEX"];
 	return RCOK;
 }
 

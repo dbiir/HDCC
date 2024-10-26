@@ -173,12 +173,6 @@
 #define ABORT_PENALTY 10 * 1000000UL   // in ns.
 #define ABORT_PENALTY_MAX 5 * 100 * 1000000UL   // in ns.
 #define BACKOFF true
-// [ INDEX ]
-#define ENABLE_LATCH        false
-#define CENTRAL_INDEX       false
-#define CENTRAL_MANAGER       false
-#define INDEX_STRUCT        IDX_HASH
-#define BTREE_ORDER         16
 
 // [TIMESTAMP]
 #define TS_TWR            false
@@ -294,6 +288,9 @@
 #define MPR 1.0
 #define MPIR 0.01
 #define MPR_NEWORDER      20 // In %
+#if NODE_CNT == 1
+#define NO_REMOTE
+#endif
 enum TPCCTable {
   TPCC_WAREHOUSE,
           TPCC_DISTRICT,
@@ -306,13 +303,14 @@ enum TPCCTable {
   TPCC_STOCK
 };
 enum TPCCTxnType {
-  TPCC_ALL,
           TPCC_PAYMENT,
           TPCC_NEW_ORDER,
           TPCC_ORDER_STATUS,
           TPCC_DELIVERY,
   TPCC_STOCK_LEVEL
 };
+#define TPCC_ALL 1
+#define TPCC_DIST 2
 enum DATxnType {
   DA_READ,
   DA_WRITE,
@@ -361,6 +359,19 @@ enum PPSTxnType {
           PPS_UPDATEPRODUCTPART,
           PPS_UPDATEPART
           };
+
+/***********************************************/
+// INDEX
+/***********************************************/
+#define ENABLE_LATCH        true
+#define CENTRAL_INDEX       false
+#define CENTRAL_MANAGER       false
+// #if WORKLOAD == TPCC && TXN_TYPE == TPCC_ALL
+// #define INDEX_STRUCT        IDX_BTREE
+// #else
+#define INDEX_STRUCT        IDX_HASH
+// #endif
+#define BTREE_ORDER         16
 
 /***********************************************/
 // DEBUG info

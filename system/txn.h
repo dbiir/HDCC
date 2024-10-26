@@ -22,6 +22,7 @@
 #include "semaphore.h"
 #include "array.h"
 #include "transport/message.h"
+#include "index_btree.h"
 //#include "wl.h"
 #if CC_ALG == SNAPPER
 #include <utility>
@@ -79,7 +80,12 @@ public:
 	uint64_t row_cnt;
 	// Internal state
 	TxnState twopc_state;
+#if TXN_TYPE == TPCC_ALL
+	Array<std::pair<row_t*, index_btree*>> insert_rows;
+#else
 	Array<row_t*> insert_rows;
+#endif
+	itemid_t* insert_items;
 	txnid_t         txn_id;
 	uint64_t batch_id;
 	RC rc;
@@ -204,6 +210,9 @@ public:
 		return recon;
 	};
 		bool recon;
+
+	// Hack
+	RC get_row(row_t * row, access_t type, row_t *& row_rtn);
 
 	row_t * volatile cur_row;
 	// [DL_DETECT, NO_WAIT, WAIT_DIE]
@@ -354,12 +363,18 @@ public:
 protected:
 
 	int rsp_cnt;
-	void            insert_row(row_t * row, table_t * table);
+#if TXN_TYPE == TPCC_ALL
+	RC            	insert_row(row_t * row, index_btree * index);
+	RC				insert_item(itemid_t * item, index_btree * index);
+#else
+	void			insert_row(row_t * row, table_t * table);
+	RC				insert_item(itemid_t * item, INDEX * index);
+#endif
+	RC				delete_row(row_t * row, index_btree * index);
 
 	itemid_t *      index_read(INDEX * index, idx_key_t key, int part_id);
 	itemid_t *      index_read(INDEX * index, idx_key_t key, int part_id, int count);
 	RC get_lock(row_t * row, access_t type);
-	RC get_row(row_t * row, access_t type, row_t *& row_rtn);
 	RC get_row_post_wait(row_t *& row_rtn);
 
 	// For Waiting

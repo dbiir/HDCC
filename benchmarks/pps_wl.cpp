@@ -60,11 +60,11 @@ RC PPSWorkload::init_schema(const char * schema_file) {
 	t_supplies = tables["SUPPLIES"];
 	t_uses = tables["USES"];
 
-	i_parts = indexes["PARTS_IDX"];
-	i_suppliers = indexes["SUPPLIERS_IDX"];
-	i_products = indexes["PRODUCTS_IDX"];
-	i_uses = indexes["USES_IDX"];
-	i_supplies = indexes["SUPPLIES_IDX"];
+	i_parts = (INDEX *)indexes["PARTS_IDX"];
+	i_suppliers = (INDEX *)indexes["SUPPLIERS_IDX"];
+	i_products = (INDEX *)indexes["PRODUCTS_IDX"];
+	i_uses = (INDEX *)indexes["USES_IDX"];
+	i_supplies = (INDEX *)indexes["SUPPLIES_IDX"];
 	return RCOK;
 }
 

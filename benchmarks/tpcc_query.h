@@ -45,8 +45,11 @@ public:
 
 private:
 	BaseQuery * gen_requests(uint64_t home_partition_id, Workload * h_wl);
-  BaseQuery * gen_payment(uint64_t home_partition);
-  BaseQuery * gen_new_order(uint64_t home_partition);
+	BaseQuery * gen_payment(uint64_t home_partition);
+	BaseQuery * gen_new_order(uint64_t home_partition);
+	BaseQuery * gen_order_status(uint64_t home_partition);
+	BaseQuery * gen_delivery(uint64_t home_partition);
+	BaseQuery * gen_stock_level(uint64_t home_partition);
 	myrand * mrand;
 };
 
@@ -98,7 +101,8 @@ public:
 	uint64_t ol_number;
 	uint64_t ol_amount;
 	uint64_t o_id;
-  uint64_t rqry_req_cnt;
+	uint64_t threshold;
+  	uint64_t rqry_req_cnt;
 
 };
 

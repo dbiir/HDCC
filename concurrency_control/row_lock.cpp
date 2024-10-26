@@ -397,3 +397,7 @@ void Row_lock::return_entry(LockEntry * entry) {
     mem_allocator.free(entry, sizeof(LockEntry));
 }
 
+bool Row_lock::has_write_lock() {
+    return lock_type == LOCK_EX;
+}
+

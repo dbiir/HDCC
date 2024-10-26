@@ -243,6 +243,11 @@ void Stats_thd::clear() {
   mbuf_send_intv_time=0;
   msg_copy_output_time=0;
 
+  // Btree
+  btree_traversal_time=0;
+  btree_insert_time=0;
+  btree_read_time=0;
+
 // Conflict statistics thread
 #if STATS_EVERY_INTERVAL
   for (uint64_t i = 0; i < SECOND; i++) {
@@ -951,6 +956,26 @@ void Stats_thd::print(FILE * outf, bool prog) {
           mbuf_send_intv_time / BILLION, mbuf_send_intv_time_avg / BILLION,
           msg_copy_output_time / BILLION);
 
+    // Btree
+  double btree_traversal_time_avg = 0;
+  double btree_insert_time_avg = 0;
+  double btree_read_time_avg = 0;
+  if (txn_cnt > 0) {
+    btree_traversal_time_avg = btree_traversal_time / txn_cnt;
+    btree_insert_time_avg = btree_insert_time / txn_cnt;
+    btree_read_time_avg = btree_read_time / txn_cnt;
+  }
+  fprintf(outf,
+  ",btree_traversal_time=%f"
+  ",btree_insert_time=%f"
+  ",btree_read_time=%f"
+  ",btree_traversal_time_avg=%f"
+  ",btree_insert_time_avg=%f"
+  ",btree_read_time_avg=%f",
+          btree_traversal_time / BILLION, btree_insert_time / BILLION, btree_read_time / BILLION,
+          btree_traversal_time_avg / BILLION, btree_insert_time_avg / BILLION, btree_read_time_avg / BILLION);
+
+
   // Concurrency control, general
   fprintf(outf,
     ",cc_conflict_cnt=%ld"
@@ -1559,6 +1584,11 @@ void Stats_thd::combine(Stats_thd * stats) {
   msg_unpack_time+=stats->msg_unpack_time;
   mbuf_send_intv_time+=stats->mbuf_send_intv_time;
   msg_copy_output_time+=stats->msg_copy_output_time;
+
+  //Btree
+  btree_traversal_time+=stats->btree_traversal_time;
+  btree_insert_time+=stats->btree_insert_time;
+  btree_read_time+=stats->btree_read_time;
 
   //Conflict statistics thread
 #if STATS_EVERY_INTERVAL

@@ -276,7 +276,6 @@ bool g_wh_update = WH_UPDATE;
 char * output_file = NULL;
 char * input_file = NULL;
 char * txn_file = NULL;
-TPCCTxnType g_txn_type = TXN_TYPE;
 
 #if TPCC_SMALL
 UInt32 g_max_items = MAX_ITEMS_SMALL;
