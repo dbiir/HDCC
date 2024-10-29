@@ -135,6 +135,7 @@ private:
   bool is_done();
   bool is_local_item(uint64_t idx);
   RC send_remote_request();
+  RC do_insert() {return RCOK;}
 #if CC_ALG == ARIA
   RC send_remote_read_requests() {return RCOK;}
   RC send_remote_write_requests() {return RCOK;}

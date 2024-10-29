@@ -174,6 +174,11 @@ private:
 	volatile RC _rc;
   row_t * row;
   itemid_t * items;
+  bt_node * leaf;
+  uint64_t sum_amount;
+  uint64_t leaf_traversal_cnt;
+  uint64_t s_i_id;
+  set<uint64_t> s_i_ids;
 
   uint64_t next_item_id;
 
@@ -184,6 +189,7 @@ RC run_txn_state();
   bool is_done();
   bool is_local_item(uint64_t idx);
   RC send_remote_request();
+  RC do_insert();
 #if CC_ALG == ARIA
   RC send_remote_read_requests();
   RC send_remote_write_requests();

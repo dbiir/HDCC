@@ -64,8 +64,9 @@ bool index_btree::index_exist(idx_key_t key, int part_id, TxnManager * txn) {
 	params.txn = txn;
 	bt_node * leaf;
 	// does not matter which thread check existence
-	RC rc = find_leaf(params, key, INDEX_NONE, leaf);
-	if (rc != RCOK) return false;
+	// RC rc = find_leaf(params, key, INDEX_NONE, leaf);
+	while (find_leaf(params, key, INDEX_NONE, leaf) != RCOK) {}
+	// if (rc != RCOK) return false;
 	if (leaf == NULL) return false;
 	for (UInt32 i = 0; i < leaf->num_keys; i++)
     	if (leaf->keys[i] == key) {
@@ -296,6 +297,7 @@ RC index_btree::make_node(uint64_t part_id, bt_node *& node) {
 //	new_node->locked = false;
 	new_node->latch = false;
 	new_node->latch_type = LATCH_NONE;
+	new_node->share_cnt = 0;
 
 	node = new_node;
 	return RCOK;
@@ -420,16 +422,29 @@ RC index_btree::find_leaf(glob_param params, idx_key_t key, idx_acc_t access_typ
 	bt_node * child;
 	// For index_exist use.
 	if (access_type == INDEX_NONE) {
+		if (!latch_node(c, LATCH_SH)) return Abort;
 		while (!c->is_leaf) {
 			for (i = 0; i < c->num_keys; i++) {
         		if (key < c->keys[i]) break;
 			}
-			c = (bt_node *)c->pointers[i];
+			child = (bt_node *)c->pointers[i];
+			if (child->is_leaf) {
+				row_t * row __attribute__((unused));
+				RC rc = params.txn->get_row(child->row, WR, row);
+				release_latch(c);
+				leaf = child;
+				if (rc == RCOK || rc == WAIT) {
+					return RCOK;
+				}
+				return rc;
+			} else if (!latch_node(child, LATCH_SH)) {
+				release_latch(c);
+				return Abort;
+			}
+			release_latch(c);
+			c = child;
 		}
-		leaf = c;
-		row_t * row __attribute__((unused));
-		RC rc = params.txn->get_row(leaf->row, WR, row);
-		return rc;
+		return RCOK;
 	}
 	// Does not remove index at the first time, thus no need to lock non-leaf nodes
 	if (access_type == INDEX_DELETE) {
@@ -468,14 +483,15 @@ RC index_btree::find_leaf(glob_param params, idx_key_t key, idx_acc_t access_typ
       		if (key < c->keys[i]) break;
 		}
 		child = (bt_node *)c->pointers[i];
-#if CC_ALG == CALVIN || CC_ALG == SILO || CC_ALG == HDCC
+#if CC_ALG == CALVIN || CC_ALG == SILO || CC_ALG == HDCC || CC_ALG == ARIA || CC_ALG == SNAPPER
 		if (simulation->is_setup_done() && child->is_leaf) {
 			leaf = child;
-			RC rc;
+			RC rc = RCOK;
 			row_t * row __attribute__((unused));
 			if (access_type == INDEX_INSERT) {
-				// rc = child->row->get_lock(WR, params.txn);
+#if CC_ALG == SNAPPER
 				rc = params.txn->get_row(child->row, WR, row);
+#endif
 				if (rc == RCOK && child->num_keys == order - 1) {
 					assert(c->latch_type == LATCH_SH);
 					while (upgrade_latch(c) != RCOK) {}
@@ -490,19 +506,11 @@ RC index_btree::find_leaf(glob_param params, idx_key_t key, idx_acc_t access_typ
 			} else {
 				// rc = child->row->get_lock(RD, params.txn);
 				rc = params.txn->get_row(child->row, RD, row);
-				assert(c->latch_type == LATCH_SH);
-				// release_latch(c);
+				if (rc != RCOK) {
+					release_latch(c);
+				}
 			}
-			if (rc != RCOK) {
-				cleanup(c, last_ex);
-				last_ex = NULL;
-				release_latch(c);
-			}
-			if (rc == RCOK || rc == WAIT) {
-				return RCOK;
-			} else {
-				return Abort;
-			}
+			return rc;
 		} else {
 #endif
 			if (!latch_node(child, LATCH_SH)) {
@@ -529,7 +537,7 @@ RC index_btree::find_leaf(glob_param params, idx_key_t key, idx_acc_t access_typ
 			} else {
 				release_latch(c); // release the LATCH_SH on c
 			}
-#if CC_ALG == CALVIN || CC_ALG == SILO || CC_ALG == HDCC
+#if CC_ALG == CALVIN || CC_ALG == SILO || CC_ALG == HDCC || CC_ALG == ARIA || CC_ALG == SNAPPER
 		}
 #endif
 		
@@ -666,7 +674,7 @@ RC index_btree::insert_into_parent(glob_param params, bt_node *left, idx_key_t k
   if (parent == NULL) return insert_into_new_root(params, left, key, right);
 
 	UInt32 insert_idx = 0;
-  while (parent->keys[insert_idx] < key && insert_idx < parent->num_keys) insert_idx++;
+  while (insert_idx < parent->num_keys && parent->keys[insert_idx] < key) insert_idx++;
 	// the parent has enough space, just insert into it
     if (parent->num_keys < order - 1) {
 		for (UInt32 i = parent->num_keys; i > insert_idx; i--) {

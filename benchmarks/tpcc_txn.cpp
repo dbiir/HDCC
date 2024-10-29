@@ -49,9 +49,21 @@ void TPCCTxnManager::reset() {
 		state = TPCC_PAYMENT0;
 	} else if (tpcc_query->txn_type == TPCC_NEW_ORDER) {
 		state = TPCC_NEWORDER0;
+	} else if (tpcc_query->txn_type == TPCC_ORDER_STATUS) {
+		state = TPCC_ORDER_STATUS0;
+	} else if (tpcc_query->txn_type == TPCC_DELIVERY) {
+		state = TPCC_DELIVERY0;
+	} else if (tpcc_query->txn_type == TPCC_STOCK_LEVEL) {
+		state = TPCC_STOCK_LEVEL0;
 	}
 	next_item_id = 0;
 	district_row = NULL;
+	items = NULL;
+	leaf = NULL;
+	sum_amount = 0;
+	leaf_traversal_cnt = 0;
+	s_i_id = 0;
+	s_i_ids.clear();
 	TxnManager::reset();
 }
 
@@ -80,7 +92,7 @@ RC TPCCTxnManager::run_txn() {
 	return rc;
 #endif
 
-	if(IS_LOCAL(txn->txn_id) && (state == TPCC_PAYMENT0 || state == TPCC_NEWORDER0)) {
+	if(IS_LOCAL(txn->txn_id) && (state == TPCC_PAYMENT0 || state == TPCC_NEWORDER0 || state == TPCC_ORDER_STATUS0 || state == TPCC_DELIVERY0 || state == TPCC_STOCK_LEVEL0)) {
 		DEBUG("Running txn %ld\n",txn->txn_id);
 #if DISTR_DEBUG
 		query->print();
@@ -126,6 +138,21 @@ bool TPCCTxnManager::is_done() {
 		case TPCC_NEW_ORDER:
 			//done = next_item_id == tpcc_query->ol_cnt || state == TPCC_FIN;
 			done = next_item_id >= tpcc_query->items.size() || state == TPCC_FIN;
+			break;
+		case TPCC_ORDER_STATUS:
+			done = items == NULL;
+			if (!done) {
+				items = items->next;
+			}
+			break;
+		case TPCC_DELIVERY:
+			done = items == NULL;
+			if (!done) {
+				items = items->next;
+			}
+			break;
+		case TPCC_STOCK_LEVEL:
+			done = next_item_id == 20;
 			break;
 		default:
 			assert(false);
@@ -317,7 +344,9 @@ RC TPCCTxnManager::acquire_locks() {
 					item = (itemid_t *)leaf->pointers[i];
 					if (!item->valid) continue;
 					temp = (row_t *)item->location;
+#if CC_ALG == CAVLIN
 					if (temp->manager->has_write_lock()) continue;
+#endif
 					row = temp;
 					break;
 				}
@@ -560,6 +589,74 @@ void TPCCTxnManager::next_tpcc_state() {
 				state = TPCC_FIN;
 			}
 			break;
+		case TPCC_ORDER_STATUS0:
+			state = TPCC_ORDER_STATUS1;
+			break;
+		case TPCC_ORDER_STATUS1:
+			state = TPCC_ORDER_STATUS2;
+			break;
+		case TPCC_ORDER_STATUS2:
+			state = TPCC_ORDER_STATUS3;
+			break;
+		case TPCC_ORDER_STATUS3:
+			if (is_done()) {
+				state = TPCC_FIN;
+			}
+		case TPCC_DELIVERY0:
+			state = TPCC_DELIVERY1;
+			break;
+		case TPCC_DELIVERY1:
+			state = TPCC_DELIVERY2;
+			break;
+		case TPCC_DELIVERY2:
+			state = TPCC_DELIVERY3;
+			break;
+		case TPCC_DELIVERY3:
+			state = TPCC_DELIVERY4;
+			break;
+		case TPCC_DELIVERY4:
+			state = TPCC_DELIVERY5;
+			break;
+		case TPCC_DELIVERY5:
+			state = TPCC_DELIVERY6;
+			break;
+		case TPCC_DELIVERY6:
+			state = TPCC_DELIVERY7;
+			break;
+		case TPCC_DELIVERY7:
+			if (!is_done()) {
+				state = TPCC_DELIVERY6;
+			} else {
+				state = TPCC_DELIVERY8;
+			}
+			break;
+		case TPCC_DELIVERY8:
+			state = TPCC_DELIVERY9;
+			break;
+		case TPCC_DELIVERY9:
+			state = TPCC_FIN;
+			break;
+		case TPCC_STOCK_LEVEL0:
+			state = TPCC_STOCK_LEVEL1;
+			break;
+		case TPCC_STOCK_LEVEL1:
+			state = TPCC_STOCK_LEVEL2;
+			break;
+		case TPCC_STOCK_LEVEL2:
+			state = TPCC_STOCK_LEVEL3;
+			break;
+		case TPCC_STOCK_LEVEL3:
+			state = TPCC_STOCK_LEVEL4;
+			break;
+		case TPCC_STOCK_LEVEL4:
+			state = TPCC_STOCK_LEVEL5;
+			break;
+		case TPCC_STOCK_LEVEL5:
+			if (!is_done()) {
+				state = TPCC_STOCK_LEVEL3;
+			} else {
+				state = TPCC_FIN;
+			}
 		case TPCC_FIN:
 			break;
 		default:
@@ -663,6 +760,8 @@ RC TPCCTxnManager::run_txn_state() {
 	bool c_w_loc = GET_NODE_ID(part_id_c_w) == g_node_id;
 	bool ol_supply_w_loc = GET_NODE_ID(part_id_ol_supply_w) == g_node_id;
 
+	itemid_t * item = NULL;
+
 	RC rc = RCOK;
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
 	switch (state) {
@@ -740,6 +839,86 @@ RC TPCCTxnManager::run_txn_state() {
 			rc = new_order_9(w_id, d_id, remote, ol_i_id, ol_supply_w_id, ol_quantity, ol_number,
 											 ol_amount, o_id, row);
 						break;
+		case TPCC_ORDER_STATUS0 :
+			rc = run_order_status_0(w_id, d_id, by_last_name, c_id, c_last, row);
+			break;
+		case TPCC_ORDER_STATUS1 :
+			rc = run_order_status_1(w_id, d_id, c_id, tpcc_query->o_id, row);
+			break;
+		case TPCC_ORDER_STATUS2 :
+			rc = run_order_status_2(w_id, d_id, tpcc_query->o_id, items, row);
+			break;
+		case TPCC_ORDER_STATUS3 :
+			row = (row_t *)items->location;
+			rc = run_order_status_3(row);
+			break;
+		case TPCC_DELIVERY0 :
+			rc = run_delivery_0(w_id, d_id, tpcc_query->o_id, row);
+			break;
+		case TPCC_DELIVERY1 :
+			rc = run_delivery_1(tpcc_query->o_id, row);
+			break;
+		case TPCC_DELIVERY2 :
+			rc = run_delivery_2(tpcc_query->o_id, row);
+			break;
+		case TPCC_DELIVERY3 :
+			rc = run_delivery_3(w_id, d_id, tpcc_query->o_id, row);
+			break;
+		case TPCC_DELIVERY4 :
+			rc = run_delivery_4(tpcc_query->o_carrier_id, c_id, row);
+			break;
+		case TPCC_DELIVERY5 :
+			rc = run_delivery_5(w_id, d_id, tpcc_query->o_id, items);
+			break;
+		case TPCC_DELIVERY6 :
+			row = (row_t *)items->location;
+			rc = run_delivery_6(row);
+			break;
+		case TPCC_DELIVERY7 :
+			rc = run_delivery_7(tpcc_query->ol_delivery_d, sum_amount, row);
+			break;
+		case TPCC_DELIVERY8 :
+			rc = run_delivery_8(w_id, d_id, c_id, row);
+			break;
+		case TPCC_DELIVERY9 :
+			rc = run_delivery_9(sum_amount, row);
+			break;
+		case TPCC_STOCK_LEVEL0 :
+			rc = run_stock_level_0(w_id, d_id, row);
+			break;
+		case TPCC_STOCK_LEVEL1 :
+			rc = run_stock_level_1(tpcc_query->o_id, row);
+			break;
+		case TPCC_STOCK_LEVEL2 :
+			rc = run_stock_level_2(w_id, d_id, tpcc_query->o_id, leaf, row);
+			break;
+		case TPCC_STOCK_LEVEL3 :
+			if (leaf_traversal_cnt == 0) {
+				leaf_traversal_cnt = leaf->num_keys;
+			}
+			item = (itemid_t *)leaf->pointers[leaf_traversal_cnt-1];
+			if (item != NULL) {
+				row = (row_t *)item->location;
+				rc = run_stock_level_3(w_id, d_id, tpcc_query->o_id, row);
+			} else {
+				rc = Abort;
+			}
+			break;
+		case TPCC_STOCK_LEVEL4 :
+			rc = run_stock_level_4(w_id, s_i_id, row);
+			break;
+		case TPCC_STOCK_LEVEL5 :
+			rc = run_stock_level_5(w_id, s_i_id, tpcc_query->threshold, s_i_ids, row);
+			leaf_traversal_cnt--;
+			if (leaf_traversal_cnt == 0) {
+				leaf = leaf->prev;
+				if (leaf == NULL) {
+					state = TPCC_FIN;
+				}
+				leaf_traversal_cnt = leaf->num_keys;
+			}
+			next_item_id ++;
+			break;
 		case TPCC_FIN :
 				state = TPCC_FIN;
 			if (tpcc_query->rbk) return Abort;
@@ -1162,8 +1341,15 @@ inline RC TPCCTxnManager::new_order_5_1(uint64_t w_id, uint64_t d_id, uint64_t c
 		m_item->valid = true;
 		_wl->i_order_cust->index_insert(custKey(c_id, d_id, w_id), m_item);
 	}
-#elif CC_ALG == SILO
-
+#elif CC_ALG == SNAPPER
+	if (algo == CALVIN) {
+		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+		m_item->init();
+		m_item->type = DT_row;
+		m_item->location = r_order;
+		m_item->valid = true;
+		_wl->i_order_cust->index_insert(custKey(c_id, d_id, w_id), m_item);
+	}
 #endif
 #else
 	insert_row(r_order, _wl->t_order);
@@ -1580,7 +1766,7 @@ inline RC TPCCTxnManager::run_stock_level_4(uint64_t w_id, uint64_t &s_i_id, row
 	uint64_t starttime = get_sys_clock();
 	r_local->get_value(OL_I_ID, s_i_id);
 	itemid_t * item = NULL;
-	index_read(_wl->i_stock, stockKey(s_i_id, w_id), wh_to_part(w_id));
+	item = index_read(_wl->i_stock, stockKey(s_i_id, w_id), wh_to_part(w_id));
 	assert(item != NULL);
 	row_t * row = ((row_t *)item->location);
 	RC rc = get_row(row, RD, r_local);
@@ -2046,7 +2232,7 @@ RC TPCCTxnManager::run_tpcc_phase2() {
 			rc = run_stock_level_2(w_id, d_id, tpcc_query->o_id, leaf, row);
 			assert(*(uint64_t*)((row_t*)(((itemid_t*)(leaf->pointers[leaf->num_keys - 1]))->location))->get_value(OL_O_ID) == tpcc_query->o_id);
 			leaf_traversal_cnt = leaf->num_keys;
-			for (uint64_t i = 0; i < tpcc_query->ol_cnt; i++) {
+			for (uint64_t i = 0; i < 20; i++) {
 				itemid_t * item = (itemid_t *)leaf->pointers[leaf_traversal_cnt-1];
 				row = (row_t *)item->location;
 				rc = run_stock_level_3(w_id, d_id, tpcc_query->o_id, row);
@@ -2157,6 +2343,36 @@ RC TPCCTxnManager::run_tpcc_phase5() {
 			break;
 		default:
 			assert(false);
+	}
+	return rc;
+}
+
+RC TPCCTxnManager::do_insert() {
+	RC rc = RCOK;
+	for (uint64_t i = 0; i < txn->insert_rows.size(); i++) {
+		row_t * row = txn->insert_rows[i].first;
+		itemid_t * m_item = (itemid_t *) mem_allocator.alloc(sizeof(itemid_t));
+		m_item->init();
+		m_item->type = DT_row;
+		m_item->location = row;
+		m_item->valid = true;
+		index_btree * index = txn->insert_rows[i].second;
+		rc = index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
+		if (rc == Abort) {
+			return Abort;
+		}
+		if (index == _wl->i_order) {
+			TPCCQuery * tpcc_query = (TPCCQuery*) query;
+			_wl->i_order_cust->index_insert(custKey(tpcc_query->c_id, tpcc_query->d_id, tpcc_query->w_id), m_item);
+		}
+	}
+	if (txn->insert_items != NULL) {
+		itemid_t * m_item = txn->insert_items;
+		row_t * row = (row_t *)m_item->location;
+		rc = _wl->i_orderline->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
+		if (rc == Abort) {
+			return Abort;
+		}
 	}
 	return rc;
 }

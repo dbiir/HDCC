@@ -264,6 +264,7 @@ void Transaction::init() {
 	batch_id = UINT64_MAX;
 	DEBUG_M("Transaction::init array insert_rows\n");
 	insert_rows.init(g_max_items_per_txn + 10);
+	delete_rows.init(g_max_items_per_txn + 10);
 	DEBUG_M("Transaction::reset array accesses\n");
 	accesses.init(MAX_ROW_PER_TXN);
 	insert_items = NULL;
@@ -276,6 +277,7 @@ void Transaction::reset(uint64_t thd_id) {
 	accesses.clear();
 	//release_inserts(thd_id);
 	insert_rows.clear();
+	delete_rows.clear();
 	write_cnt = 0;
 	row_cnt = 0;
 	twopc_state = START;
@@ -291,7 +293,6 @@ void Transaction::release_accesses(uint64_t thd_id) {
 
 #if TXN_TYPE == TPCC_ALL
 void Transaction::release_inserts(uint64_t thd_id) {
-#if CC_ALG != CALVIN && CC_ALG != HDCC && CC_ALG != SILO
 	for(uint64_t i = 0; i < insert_rows.size(); i++) {
 		row_t * row = insert_rows[i].first;
 #if CC_ALG != MAAT && CC_ALG != OCC && CC_ALG != WOOKONG && \
@@ -314,7 +315,6 @@ void Transaction::release_inserts(uint64_t thd_id) {
 		mem_allocator.free(insert_items, 0);
 		insert_items = NULL;
 	}
-#endif
 }
 #else
 void Transaction::release_inserts(uint64_t thd_id) {
@@ -348,7 +348,7 @@ void Transaction::release(uint64_t thd_id) {
 	release_accesses(thd_id);
 	DEBUG_M("Transaction::release array accesses free\n")
 	accesses.release();
-	release_inserts(thd_id);
+	// release_inserts(thd_id);
 	DEBUG_M("Transaction::release array insert_rows free\n")
 	insert_rows.release();
 }
@@ -579,6 +579,10 @@ void TxnManager::reset_query() {
 
 RC TxnManager::commit() {
 	DEBUG("Commit %ld\n",get_txn_id());
+	RC rc = do_insert();
+	assert(rc == RCOK);
+	rc = do_delete();
+	assert(rc == RCOK);
 	release_locks(RCOK);
 #if CC_ALG == MAAT
 	time_table.release(get_thd_id(),get_txn_id());
@@ -1226,6 +1230,7 @@ void TxnManager::cleanup(RC rc) {
 	if (rc == Abort) {
 		txn->release_inserts(get_thd_id());
 		txn->insert_rows.clear();
+		txn->delete_rows.clear();
 
 		INC_STATS(get_thd_id(), abort_time, get_sys_clock() - starttime);
 	}
@@ -1545,10 +1550,10 @@ RC TxnManager::insert_row(row_t * row, index_btree * index) {
 		txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
 	}
 #elif CC_ALG == SILO
-	bool exist = index->index_exist(row->get_primary_key(), row->get_part_id(), this);
-	if (exist) {
-		return Abort;
-	}
+	bt_node * leaf;
+	row_t * temp1, * temp2;
+	index->leaf_row_access(UINT64_MAX, LF_LAST, row->get_part_id(), this, leaf, temp1);
+	this->get_row(temp1, WR, temp2);
 	txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
 #else
 	txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
@@ -1567,6 +1572,16 @@ void TxnManager::insert_row(row_t * row, table_t * table) {
 RC TxnManager::delete_row(row_t * row, index_btree * index) {
 #if CC_ALG == CALVIN
 	index->index_remove(row->get_primary_key(), row->get_part_id());
+#elif CC_ALG == HDCC
+	if (algo == CALVIN) {
+		index->index_remove(row->get_primary_key(), row->get_part_id());
+	} else {
+		txn->delete_rows.add(std::pair<row_t*, index_btree*>(row, index));
+	}
+#elif CC_ALG == SILO
+	txn->delete_rows.add(std::pair<row_t*, index_btree*>(row, index));
+#else
+	
 #endif
 	return RCOK;
 }
@@ -1738,6 +1753,19 @@ bool TxnManager::calvin_collect_phase_done() {
 	DEBUG("(%ld,%ld) calvin collect phase done!\n",txn->txn_id,txn->batch_id);
 	}
 	return ready;
+}
+
+RC TxnManager::do_delete() {
+	RC rc = RCOK;
+	for (uint64_t i = 0; i < txn->delete_rows.size(); i++) {
+		row_t * row = txn->delete_rows[i].first;
+		index_btree * index = txn->delete_rows[i].second;
+		rc = index->index_remove(row->get_primary_key(), row->get_part_id());
+		if (rc == Abort) {
+			return rc;
+		}
+	}
+	return rc;
 }
 
 void TxnManager::release_locks(RC rc) {

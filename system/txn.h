@@ -85,6 +85,7 @@ public:
 #else
 	Array<row_t*> insert_rows;
 #endif
+	Array<std::pair<row_t*, index_btree*>> delete_rows;
 	itemid_t* insert_items;
 	txnid_t         txn_id;
 	uint64_t batch_id;
