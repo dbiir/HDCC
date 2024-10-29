@@ -142,6 +142,18 @@ int CCSelector::get_best_cc(Message *msg){
                 }
             }
 			break;
+        case TPCC_ORDER_STATUS:
+        case TPCC_DELIVERY:
+            return SILO;
+        case TPCC_STOCK_LEVEL:
+            // Dist
+            key = distKey(d_id, w_id);
+            key += TPCCTableKey::DISTRICT_OFFSET;
+            shard = key_to_shard(key);
+            if(is_high_conflict[shard]){
+                return CALVIN;
+            }
+            break;
 		default:
 			assert(false);
 	}
@@ -177,7 +189,8 @@ void CCSelector::update_conflict_stats(TPCCQuery *query, row_t * row){
             key += TPCCTableKey::CUST_BY_ID_OFFSET;
         }
     }else{
-        assert(false);
+        return;
+    //     assert(false);
     }
     uint64_t shard = key_to_shard(key);
     ATOM_ADD(pstats[shard], 1);

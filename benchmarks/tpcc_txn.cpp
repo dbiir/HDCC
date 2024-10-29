@@ -1318,10 +1318,13 @@ inline RC TPCCTxnManager::new_order_5_1(uint64_t w_id, uint64_t d_id, uint64_t c
 	RC rc;
 #if CC_ALG == CALVIN
 	rc = get_lock(r_order, WR);
-#else
+#elif CC_ALG == HDCC || CC_ALG == SNAPPER
+	if (algo == CALVIN) {
+		rc = get_lock(r_order, WR);
+	}
+#endif
 	row_t * temp;
 	rc = get_row(r_order, WR, temp);
-#endif
 	assert(rc == RCOK);
 	rc = insert_row(r_order, _wl->i_order);
 	if (rc == Abort) return rc;
@@ -1378,10 +1381,13 @@ inline RC TPCCTxnManager::new_order_5_2(uint64_t w_id, uint64_t d_id, uint64_t c
 	RC rc;
 #if CC_ALG == CALVIN
 	rc = get_lock(r_no, WR);
-#else
+#elif CC_ALG == HDCC || CC_ALG == SNAPPER
+	if (algo == CALVIN) {
+		rc = get_lock(r_no, WR);
+	}
+#endif
 	row_t * temp;
 	rc = get_row(r_no, WR, temp);
-#endif
 	assert(rc == RCOK);
 	rc = insert_row(r_no, _wl->i_neworder);
 	if (rc == Abort) return rc;
@@ -1620,8 +1626,8 @@ inline RC TPCCTxnManager::run_order_status_3(row_t * l_orderline_local) {
 
 inline RC TPCCTxnManager::run_delivery_0(uint64_t w_id, uint64_t d_id, uint64_t &o_id, row_t*& l_row) {
 	uint64_t starttime = get_sys_clock();
-	row_t * row;
-	bt_node * leaf;
+	row_t * row = NULL;
+	bt_node * leaf = NULL;
 #if TXN_TYPE == TPCC_ALL
 	_wl->i_neworder->leaf_row_access(0, LF_FIRST, wd_to_part(w_id, d_id), this, leaf, row);
 #endif
@@ -1745,7 +1751,7 @@ inline RC TPCCTxnManager::run_stock_level_1(uint64_t &d_next_o_id, row_t *&r_dis
 
 inline RC TPCCTxnManager::run_stock_level_2(uint64_t w_id, uint64_t d_id, uint64_t d_next_o_id, bt_node *& leaf, row_t *&r_leaf_local) {
 	uint64_t starttime = get_sys_clock();
-	row_t * row;
+	row_t * row = NULL;
 #if TXN_TYPE == TPCC_ALL
 	_wl->i_orderline->leaf_row_access(UINT64_MAX, LF_LAST, wd_to_part(w_id, d_id), this, leaf, row);
 #endif
@@ -2347,6 +2353,7 @@ RC TPCCTxnManager::run_tpcc_phase5() {
 	return rc;
 }
 
+#if TXN_TYPE == TPCC_ALL
 RC TPCCTxnManager::do_insert() {
 	RC rc = RCOK;
 	for (uint64_t i = 0; i < txn->insert_rows.size(); i++) {
@@ -2376,3 +2383,8 @@ RC TPCCTxnManager::do_insert() {
 	}
 	return rc;
 }
+#else
+RC TPCCTxnManager::do_insert() {
+	return RCOK;
+}
+#endif

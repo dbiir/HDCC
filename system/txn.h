@@ -377,6 +377,8 @@ protected:
 	itemid_t *      index_read(INDEX * index, idx_key_t key, int part_id, int count);
 	RC get_lock(row_t * row, access_t type);
 	RC get_row_post_wait(row_t *& row_rtn);
+	virtual RC do_insert() = 0;
+	RC do_delete();
 
 	// For Waiting
 	row_t * last_row;
