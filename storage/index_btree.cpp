@@ -489,9 +489,6 @@ RC index_btree::find_leaf(glob_param params, idx_key_t key, idx_acc_t access_typ
 			RC rc = RCOK;
 			row_t * row __attribute__((unused));
 			if (access_type == INDEX_INSERT) {
-#if CC_ALG == SNAPPER
-				rc = params.txn->get_row(child->row, WR, row);
-#endif
 				if (rc == RCOK && child->num_keys == order - 1) {
 					assert(c->latch_type == LATCH_SH);
 					while (upgrade_latch(c) != RCOK) {}

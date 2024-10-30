@@ -1100,7 +1100,7 @@ void TxnManager::cleanup_row(RC rc, uint64_t rid) {
 #else
 #if CC_ALG == HDCC
 		if (algo == CALVIN) {
-			orig_r->return_row(rc, type, this, txn->accesses[rid]->data);
+			// orig_r->return_row(rc, type, this, txn->accesses[rid]->data);
 		} else {
 			version = orig_r->return_row(rc, type, this, txn->accesses[rid]->data);
 		}
@@ -1215,6 +1215,15 @@ void TxnManager::cleanup(RC rc) {
 	}
 #endif
 #if CC_ALG == SNAPPER
+	if (algo == CALVIN) {
+		// cleanup locked rows
+		for (uint64_t i = 0; i < calvin_locked_rows.size(); i++) {
+			row_t * row = calvin_locked_rows[i];
+			row->return_row(rc,RD,this,row);
+		}
+	}
+#endif
+#if CC_ALG == HDCC
 	if (algo == CALVIN) {
 		// cleanup locked rows
 		for (uint64_t i = 0; i < calvin_locked_rows.size(); i++) {
@@ -1513,6 +1522,13 @@ RC TxnManager::insert_item(itemid_t * item, index_btree * index) {
 	}
 #elif CC_ALG == SILO
 	txn->insert_items = item;
+#elif CC_ALG == SNAPPER
+	if (algo == CALVIN) {
+		row_t * row = (row_t *) item->location;
+		index->index_insert(row->get_primary_key(), item, row->get_part_id(), this);
+	} else {
+		txn->insert_items = item;
+	}
 #else
 	txn->insert_items = item;
 #endif
@@ -1527,6 +1543,7 @@ RC TxnManager::insert_item(itemid_t * item, INDEX * index) {
 
 #if TXN_TYPE == TPCC_ALL
 RC TxnManager::insert_row(row_t * row, index_btree * index) {
+	RC rc = RCOK;
 #if CC_ALG == CALVIN
 	itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
 	m_item->init();
@@ -1543,22 +1560,35 @@ RC TxnManager::insert_row(row_t * row, index_btree * index) {
 		m_item->valid = true;
 		index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
 	} else {
-		bool exist = index->index_exist(row->get_primary_key(), row->get_part_id(), this);
-		if (exist) {
-			return Abort;
-		}
+		bt_node * leaf;
+		row_t * temp1, * temp2;
+		index->leaf_row_access(UINT64_MAX, LF_LAST, row->get_part_id(), this, leaf, temp1);
+		rc = this->get_row(temp1, WR, temp2);
 		txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
 	}
-#elif CC_ALG == SILO
+#elif CC_ALG == SNAPPER
+	if (algo == CALVIN) {
+		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+		m_item->init();
+		m_item->type = DT_row;
+		m_item->location = row;
+		m_item->valid = true;
+		index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
+	} else {
+		bt_node * leaf;
+		row_t * temp1, * temp2;
+		index->leaf_row_access(UINT64_MAX, LF_LAST, row->get_part_id(), this, leaf, temp1);
+		rc = this->get_row(temp1, WR, temp2);
+		txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
+	}
+#else
 	bt_node * leaf;
 	row_t * temp1, * temp2;
 	index->leaf_row_access(UINT64_MAX, LF_LAST, row->get_part_id(), this, leaf, temp1);
-	this->get_row(temp1, WR, temp2);
-	txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
-#else
+	rc = this->get_row(temp1, WR, temp2);
 	txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
 #endif
-	return RCOK;
+	return rc;
 }
 #else
 // This function is useless
@@ -1578,10 +1608,14 @@ RC TxnManager::delete_row(row_t * row, index_btree * index) {
 	} else {
 		txn->delete_rows.add(std::pair<row_t*, index_btree*>(row, index));
 	}
-#elif CC_ALG == SILO
-	txn->delete_rows.add(std::pair<row_t*, index_btree*>(row, index));
+#elif CC_ALG == SNAPPER
+	if (algo == CALVIN) {
+		index->index_remove(row->get_primary_key(), row->get_part_id());
+	} else {
+		txn->delete_rows.add(std::pair<row_t*, index_btree*>(row, index));
+	}
 #else
-	
+	txn->delete_rows.add(std::pair<row_t*, index_btree*>(row, index));
 #endif
 	return RCOK;
 }

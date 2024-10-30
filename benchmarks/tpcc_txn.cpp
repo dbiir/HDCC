@@ -820,7 +820,8 @@ RC TPCCTxnManager::run_txn_state() {
 						rc = new_order_5_2( w_id, d_id, c_id, remote, ol_cnt, o_entry_d, &tpcc_query->o_id, row);
 						break;
 		case TPCC_NEWORDER9_1 :
-						rc = new_order_9_1( w_id, d_id, remote, o_id, row);
+						rc = new_order_9_1( w_id, d_id, remote, tpcc_query->o_id, row);
+						break;
 		case TPCC_NEWORDER6 :
 			rc = new_order_6(ol_i_id, row);
 			break;
@@ -1359,7 +1360,7 @@ inline RC TPCCTxnManager::new_order_5_1(uint64_t w_id, uint64_t d_id, uint64_t c
 #endif
 
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
-	return RCOK;
+	return rc;
 }
 
 inline RC TPCCTxnManager::new_order_5_2(uint64_t w_id, uint64_t d_id, uint64_t c_id, bool remote,
@@ -1401,7 +1402,7 @@ inline RC TPCCTxnManager::new_order_5_2(uint64_t w_id, uint64_t d_id, uint64_t c
 	}
 #endif
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
-	return RCOK;
+	return rc;
 }
 
 
@@ -1568,7 +1569,7 @@ inline RC TPCCTxnManager::new_order_9_1(uint64_t w_id, uint64_t d_id, bool remot
 	}
 #endif
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
-	return RCOK;
+	return rc;
 }
 
 inline RC TPCCTxnManager::run_order_status_0(uint64_t w_id, uint64_t d_id, bool by_last_name, uint64_t c_id, char* c_last,
@@ -1653,6 +1654,9 @@ inline RC TPCCTxnManager::run_delivery_1(uint64_t &no_o_id, row_t *&r_new_order_
 
 inline RC TPCCTxnManager::run_delivery_2(uint64_t &no_o_id, row_t *&r_new_order_local) {
 	uint64_t starttime = get_sys_clock();
+#if CC_ALG != CALVIN
+	r_new_order_local->get_value(NO_O_ID, no_o_id);
+#endif
 #if TXN_TYPE == TPCC_ALL
 	delete_row(r_new_order_local, _wl->i_neworder);
 #endif
@@ -1775,6 +1779,11 @@ inline RC TPCCTxnManager::run_stock_level_4(uint64_t w_id, uint64_t &s_i_id, row
 	item = index_read(_wl->i_stock, stockKey(s_i_id, w_id), wh_to_part(w_id));
 	assert(item != NULL);
 	row_t * row = ((row_t *)item->location);
+	for (uint64_t i = 0; i < txn->accesses.size(); i++) {
+		if (txn->accesses[i]->orig_row == row) {
+			return RCOK;
+		}
+	}
 	RC rc = get_row(row, RD, r_local);
 	INC_STATS(get_thd_id(),trans_benchmark_compute_time,get_sys_clock() - starttime);
 	return rc;
@@ -1926,6 +1935,51 @@ RC TPCCTxnManager::run_aria_txn() {
 			if (!w_loc || !ol_supply_w_all_loc) {
 				rc = send_remote_read_requests();
 			}
+		} else if (tpcc_query->txn_type == TPCC_ORDER_STATUS) {
+			uint64_t wh_node = GET_NODE_ID(wh_to_part(w_id));
+			if (wh_node != g_node_id) {
+				w_loc = false;
+			}
+			query->partitions_touched.add_unique(wh_node);
+			assert(w_loc);
+			rc = run_order_status_0(w_id, d_id, by_last_name, c_id, c_last, row);
+			rc = run_order_status_1(w_id, d_id, c_id, tpcc_query->o_id, row);
+			rc = run_order_status_2(w_id, d_id, tpcc_query->o_id, items, row);
+			while (items != NULL) {
+				row = (row_t *)items->location;
+				rc = run_order_status_3(row);
+				items = items->next;
+			}
+		} else if (tpcc_query->txn_type == TPCC_DELIVERY) {
+		} else if (tpcc_query->txn_type == TPCC_STOCK_LEVEL) {
+			uint64_t wh_node = GET_NODE_ID(wh_to_part(w_id));
+			if (wh_node != g_node_id) {
+				w_loc = false;
+			}
+			query->partitions_touched.add_unique(wh_node);
+			assert(w_loc);
+			bt_node * leaf;
+			rc = run_stock_level_0(w_id, d_id, row);
+			rc = run_stock_level_1(tpcc_query->o_id, row);
+			rc = run_stock_level_2(w_id, d_id, tpcc_query->o_id, leaf, row);
+			assert(*(uint64_t*)((row_t*)(((itemid_t*)(leaf->pointers[leaf->num_keys - 1]))->location))->get_value(OL_O_ID) == tpcc_query->o_id);
+			leaf_traversal_cnt = leaf->num_keys;
+			for (uint64_t i = 0; i < 20; i++) {
+				itemid_t * item = (itemid_t *)leaf->pointers[leaf_traversal_cnt-1];
+				row = (row_t *)item->location;
+				rc = run_stock_level_3(w_id, d_id, tpcc_query->o_id, row);
+				uint64_t s_i_id;
+				rc = run_stock_level_4(w_id, s_i_id, row);
+				rc = run_stock_level_5(w_id, s_i_id, tpcc_query->threshold, s_i_ids, row);
+				leaf_traversal_cnt--;
+				if (leaf_traversal_cnt == 0) {
+					leaf = leaf->prev;
+					if (leaf == NULL) {
+						break;
+					}
+					leaf_traversal_cnt = leaf->num_keys;
+				}
+			}
 		} else {
 			assert(false);
 		}
@@ -1973,6 +2027,30 @@ RC TPCCTxnManager::run_aria_txn() {
 			if (!w_loc || !ol_supply_w_all_loc) {
 				rc = send_remote_write_requests();
 			}
+		} else if (tpcc_query->txn_type == TPCC_ORDER_STATUS) {
+		} else if (tpcc_query->txn_type == TPCC_DELIVERY) {
+			uint64_t wh_node = GET_NODE_ID(wh_to_part(w_id));
+			if (wh_node != g_node_id) {
+				w_loc = false;
+			}
+			query->partitions_touched.add_unique(wh_node);
+			assert(w_loc);
+			rc = run_delivery_0(w_id, d_id, tpcc_query->o_id, row);
+			rc = run_delivery_1(tpcc_query->o_id, row);
+			rc = run_delivery_2(tpcc_query->o_id, row);
+			rc = run_delivery_3(w_id, d_id, tpcc_query->o_id, row);
+			rc = run_delivery_4(tpcc_query->o_carrier_id, c_id, row);
+			rc = run_delivery_5(w_id, d_id, tpcc_query->o_id, items);
+			
+			while (items != NULL) {
+				row = (row_t *)items->location;
+				rc = run_delivery_6(row);
+				rc = run_delivery_7(tpcc_query->ol_delivery_d, sum_amount, row);
+				items = items->next;
+			}
+			rc = run_delivery_8(w_id, d_id, c_id, row);
+			rc = run_delivery_9(sum_amount, row);
+		} else if (tpcc_query->txn_type == TPCC_STOCK_LEVEL) {
 		} else {
 			assert(false);
 		}
