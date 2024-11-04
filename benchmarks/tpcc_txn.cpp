@@ -897,10 +897,14 @@ RC TPCCTxnManager::run_txn_state() {
 			if (leaf_traversal_cnt == 0) {
 				leaf_traversal_cnt = leaf->num_keys;
 			}
-			item = (itemid_t *)leaf->pointers[leaf_traversal_cnt-1];
-			if (item != NULL) {
-				row = (row_t *)item->location;
-				rc = run_stock_level_3(w_id, d_id, tpcc_query->o_id, row);
+			if (leaf_traversal_cnt > 0) {
+				item = (itemid_t *)leaf->pointers[leaf_traversal_cnt-1];
+				if (item != NULL) {
+					row = (row_t *)item->location;
+					rc = run_stock_level_3(w_id, d_id, tpcc_query->o_id, row);
+				} else {
+					rc = Abort;
+				}
 			} else {
 				rc = Abort;
 			}
@@ -1329,32 +1333,32 @@ inline RC TPCCTxnManager::new_order_5_1(uint64_t w_id, uint64_t d_id, uint64_t c
 	assert(rc == RCOK);
 	rc = insert_row(r_order, _wl->i_order);
 	if (rc == Abort) return rc;
-#if CC_ALG == CALVIN
-	itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
-	m_item->init();
-	m_item->type = DT_row;
-	m_item->location = r_order;
-	m_item->valid = true;
-	_wl->i_order_cust->index_insert(custKey(c_id, d_id, w_id), m_item);
-#elif CC_ALG == HDCC
-	if (algo == CALVIN) {
-		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
-		m_item->init();
-		m_item->type = DT_row;
-		m_item->location = r_order;
-		m_item->valid = true;
-		_wl->i_order_cust->index_insert(custKey(c_id, d_id, w_id), m_item);
-	}
-#elif CC_ALG == SNAPPER
-	if (algo == CALVIN) {
-		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
-		m_item->init();
-		m_item->type = DT_row;
-		m_item->location = r_order;
-		m_item->valid = true;
-		_wl->i_order_cust->index_insert(custKey(c_id, d_id, w_id), m_item);
-	}
-#endif
+// #if CC_ALG == CALVIN
+// 	itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+// 	m_item->init();
+// 	m_item->type = DT_row;
+// 	m_item->location = r_order;
+// 	m_item->valid = true;
+// 	_wl->i_order_cust->index_insert(custKey(c_id, d_id, w_id), m_item);
+// #elif CC_ALG == HDCC
+// 	if (algo == CALVIN) {
+// 		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+// 		m_item->init();
+// 		m_item->type = DT_row;
+// 		m_item->location = r_order;
+// 		m_item->valid = true;
+// 		_wl->i_order_cust->index_insert(custKey(c_id, d_id, w_id), m_item);
+// 	}
+// #elif CC_ALG == SNAPPER
+// 	if (algo == CALVIN) {
+// 		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+// 		m_item->init();
+// 		m_item->type = DT_row;
+// 		m_item->location = r_order;
+// 		m_item->valid = true;
+// 		_wl->i_order_cust->index_insert(custKey(c_id, d_id, w_id), m_item);
+// 	}
+// #endif
 #else
 	insert_row(r_order, _wl->t_order);
 #endif
@@ -2403,6 +2407,7 @@ RC TPCCTxnManager::run_tpcc_phase5() {
 													ol_amount, o_id, row);
 				}
 			}
+			do_insert();
 			break;
 		case TPCC_ORDER_STATUS:
 			break;

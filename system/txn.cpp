@@ -1510,28 +1510,28 @@ RC TxnManager::get_row_post_wait(row_t *& row_rtn) {
 
 #if TXN_TYPE == TPCC_ALL
 RC TxnManager::insert_item(itemid_t * item, index_btree * index) {
-#if CC_ALG == CALVIN
-	row_t * row = (row_t *) item->location;
-	index->index_insert(row->get_primary_key(), item, row->get_part_id(), this);
-#elif CC_ALG == HDCC
-	if (algo == CALVIN) {
-		row_t * row = (row_t *) item->location;
-		index->index_insert(row->get_primary_key(), item, row->get_part_id(), this);
-	} else {
-		txn->insert_items = item;
-	}
-#elif CC_ALG == SILO
+// #if CC_ALG == CALVIN
+// 	row_t * row = (row_t *) item->location;
+// 	index->index_insert(row->get_primary_key(), item, row->get_part_id(), this);
+// #elif CC_ALG == HDCC
+// 	if (algo == CALVIN) {
+// 		row_t * row = (row_t *) item->location;
+// 		index->index_insert(row->get_primary_key(), item, row->get_part_id(), this);
+// 	} else {
+// 		txn->insert_items = item;
+// 	}
+// #elif CC_ALG == SILO
+// 	txn->insert_items = item;
+// #elif CC_ALG == SNAPPER
+// 	if (algo == CALVIN) {
+// 		row_t * row = (row_t *) item->location;
+// 		index->index_insert(row->get_primary_key(), item, row->get_part_id(), this);
+// 	} else {
+// 		txn->insert_items = item;
+// 	}
+// #else
 	txn->insert_items = item;
-#elif CC_ALG == SNAPPER
-	if (algo == CALVIN) {
-		row_t * row = (row_t *) item->location;
-		index->index_insert(row->get_primary_key(), item, row->get_part_id(), this);
-	} else {
-		txn->insert_items = item;
-	}
-#else
-	txn->insert_items = item;
-#endif
+// #endif
 	return RCOK;
 }
 #else
@@ -1544,50 +1544,50 @@ RC TxnManager::insert_item(itemid_t * item, INDEX * index) {
 #if TXN_TYPE == TPCC_ALL
 RC TxnManager::insert_row(row_t * row, index_btree * index) {
 	RC rc = RCOK;
-#if CC_ALG == CALVIN
-	itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
-	m_item->init();
-	m_item->type = DT_row;
-	m_item->location = row;
-	m_item->valid = true;
-	index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
-#elif CC_ALG == HDCC
-	if (algo == CALVIN) {
-		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
-		m_item->init();
-		m_item->type = DT_row;
-		m_item->location = row;
-		m_item->valid = true;
-		index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
-	} else {
-		bt_node * leaf;
-		row_t * temp1, * temp2;
-		index->leaf_row_access(UINT64_MAX, LF_LAST, row->get_part_id(), this, leaf, temp1);
-		rc = this->get_row(temp1, WR, temp2);
-		txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
-	}
-#elif CC_ALG == SNAPPER
-	if (algo == CALVIN) {
-		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
-		m_item->init();
-		m_item->type = DT_row;
-		m_item->location = row;
-		m_item->valid = true;
-		index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
-	} else {
-		bt_node * leaf;
-		row_t * temp1, * temp2;
-		index->leaf_row_access(UINT64_MAX, LF_LAST, row->get_part_id(), this, leaf, temp1);
-		rc = this->get_row(temp1, WR, temp2);
-		txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
-	}
-#else
+// #if CC_ALG == CALVIN
+// 	itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+// 	m_item->init();
+// 	m_item->type = DT_row;
+// 	m_item->location = row;
+// 	m_item->valid = true;
+// 	index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
+// #elif CC_ALG == HDCC
+// 	if (algo == CALVIN) {
+// 		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+// 		m_item->init();
+// 		m_item->type = DT_row;
+// 		m_item->location = row;
+// 		m_item->valid = true;
+// 		index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
+// 	} else {
+// 		bt_node * leaf;
+// 		row_t * temp1, * temp2;
+// 		index->leaf_row_access(UINT64_MAX, LF_LAST, row->get_part_id(), this, leaf, temp1);
+// 		rc = this->get_row(temp1, WR, temp2);
+// 		txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
+// 	}
+// #elif CC_ALG == SNAPPER
+// 	if (algo == CALVIN) {
+// 		itemid_t *m_item = (itemid_t *)mem_allocator.alloc(sizeof(itemid_t));
+// 		m_item->init();
+// 		m_item->type = DT_row;
+// 		m_item->location = row;
+// 		m_item->valid = true;
+// 		index->index_insert(row->get_primary_key(), m_item, row->get_part_id(), this);
+// 	} else {
+// 		bt_node * leaf;
+// 		row_t * temp1, * temp2;
+// 		index->leaf_row_access(UINT64_MAX, LF_LAST, row->get_part_id(), this, leaf, temp1);
+// 		rc = this->get_row(temp1, WR, temp2);
+// 		txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
+// 	}
+// #else
 	bt_node * leaf;
 	row_t * temp1, * temp2;
 	index->leaf_row_access(UINT64_MAX, LF_LAST, row->get_part_id(), this, leaf, temp1);
 	rc = this->get_row(temp1, WR, temp2);
 	txn->insert_rows.add(std::pair<row_t*, index_btree*>(row, index));
-#endif
+// #endif
 	return rc;
 }
 #else
