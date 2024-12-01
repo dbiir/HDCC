@@ -1319,8 +1319,8 @@ inline RC TPCCTxnManager::new_order_5_1(uint64_t w_id, uint64_t d_id, uint64_t c
 	r_order->set_value(O_OL_CNT, ol_cnt);
 	int64_t all_local = (remote? 0 : 1);
 	r_order->set_value(O_ALL_LOCAL, all_local);
+	RC rc = RCOK;
 #if TXN_TYPE == TPCC_ALL
-	RC rc;
 #if CC_ALG == CALVIN
 	rc = get_lock(r_order, WR);
 #elif CC_ALG == HDCC || CC_ALG == SNAPPER
@@ -1382,8 +1382,8 @@ inline RC TPCCTxnManager::new_order_5_2(uint64_t w_id, uint64_t d_id, uint64_t c
 	r_no->set_value(NO_O_ID, *o_id);
 	r_no->set_value(NO_D_ID, d_id);
 	r_no->set_value(NO_W_ID, w_id);
+	RC rc = RCOK;
 #if TXN_TYPE == TPCC_ALL
-	RC rc;
 #if CC_ALG == CALVIN
 	rc = get_lock(r_no, WR);
 #elif CC_ALG == HDCC || CC_ALG == SNAPPER
@@ -1560,8 +1560,9 @@ inline RC TPCCTxnManager::new_order_9_1(uint64_t w_id, uint64_t d_id, bool remot
 		m_item->next = r_ol_last;
 		r_ol_last = m_item;
 	}
+	RC rc = RCOK;
 #if TXN_TYPE == TPCC_ALL
-	RC rc = insert_item(r_ol_last, _wl->i_orderline);
+	rc = insert_item(r_ol_last, _wl->i_orderline);
 	if (rc == Abort) return rc;
 #else
 	insert_item(r_ol_last, _wl->i_orderline);

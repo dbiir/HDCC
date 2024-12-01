@@ -83,7 +83,7 @@ RC TPCCWorkload::init_schema(const char * schema_file) {
 	i_stock = (INDEX *)indexes["STOCK_IDX"];
 	i_history = (INDEX *)indexes["HISTORY_IDX"];
 	i_order_cust = (INDEX *)indexes["ORDER_CUST_IDX"];
-#if WORKLOAD == TPCC && TXN_TYPE == TPCC_ALL
+#if TXN_TYPE == TPCC_ALL
 	i_order = (index_btree *)indexes["ORDER_IDX"];
 	i_orderline = (index_btree *)indexes["ORDER-LINE_IDX"];
 	i_neworder = (index_btree *)indexes["NEW-ORDER_IDX"];

@@ -100,7 +100,7 @@ public:
 	INDEX * 	i_stock;
   INDEX *   i_history;
   INDEX *   i_order_cust;
-#if WORKLOAD == TPCC && TXN_TYPE == TPCC_ALL
+#if TXN_TYPE == TPCC_ALL
   index_btree * i_order; // key = (w_id, d_id, o_id)
   index_btree * i_orderline; // key = (w_id, d_id, o_id)
   index_btree * i_neworder; // key = (w_id, d_id, o_id)

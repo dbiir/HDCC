@@ -46,6 +46,13 @@ BaseQuery * TPCCQueryGenerator::create_query(Workload * h_wl,uint64_t home_parti
   } else {
     return gen_new_order(home_partition_id);
   }
+
+  // only new order and stock level
+  // if (x <= 0.9375) {
+  //   return gen_new_order(home_partition_id);
+  // } else {
+  //   return gen_stock_level(home_partition_id);
+  // }
 }
 #endif
 

@@ -9,10 +9,10 @@ count=0
 for HOSTNAME in ${HOSTS}; do
     #SCRIPT="env SCHEMA_PATH=\"$2\" timeout -k 10m 10m gdb -batch -ex \"run\" -ex \"bt\" --args ./rundb -nid${count} >> results.out 2>&1 | grep -v ^\"No stack.\"$"
     if [ $count -ge $NODE_CNT ]; then
-        SCRIPT="env SCHEMA_PATH=\"$2\" timeout -k 9 3m ${PATHE}runcl -nid${count} > ${PATHE}clresults.out 2>&1"
+        SCRIPT="env SCHEMA_PATH=\"$2\" timeout -k 9 10m ${PATHE}runcl -nid${count} > ${PATHE}clresults.out 2>&1"
         echo "${HOSTNAME}: runcl ${count}"
     else
-        SCRIPT="env SCHEMA_PATH=\"$2\" timeout -k 9 3m ${PATHE}rundb -nid${count} > ${PATHE}dbresults.out 2>&1"
+        SCRIPT="env SCHEMA_PATH=\"$2\" timeout -k 9 10m ${PATHE}rundb -nid${count} > ${PATHE}dbresults.out 2>&1"
         echo "${HOSTNAME}: rundb ${count}"
     fi
     ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no ${USERNAME}@${HOSTNAME} "${SCRIPT}" &
