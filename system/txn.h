@@ -326,6 +326,7 @@ public:
 	void send_finish_messages();
 	void send_prepare_messages();
 	void send_validation_messages();
+	bool belong_checkpoint;
 
 	TxnStats txn_stats;
 

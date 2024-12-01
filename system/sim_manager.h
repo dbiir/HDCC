@@ -51,9 +51,15 @@ public:
   uint64_t barrier_count;
   bool * barriers;
 
+  // For checkpoint
+  uint64_t checkpoint_epoch;
+  bool checkpoint_state;
+  volatile bool sim_half_done;
+
   void init();
   bool is_setup_done();
   bool is_done();
+  bool is_half_done();
   bool is_warmup_done();
   void set_setup_done();
   void set_done();

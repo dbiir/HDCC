@@ -37,6 +37,11 @@ void SimManager::init() {
 	barriers = (bool *) mem_allocator.alloc(sizeof(bool) * g_node_cnt);
 	memset(barriers, 0, sizeof(bool) * g_node_cnt);
 
+	//for checkpoint
+	checkpoint_epoch = UINT64_MAX;
+	checkpoint_state = false;
+	sim_half_done = false;
+
 #if TIME_ENABLE
 	run_starttime = get_sys_clock();
 	last_da_query_time = get_sys_clock();
@@ -83,6 +88,15 @@ bool SimManager::is_done() {
 	bool done = sim_done || timeout();
 	if(done && !sim_done) {
 		set_done();
+	}
+	return done;
+}
+
+bool SimManager::is_half_done() {
+	bool done = sim_half_done || ((get_sys_clock() - run_starttime) >= (g_done_timer / 2 + g_warmup_timer));
+	if(done && !sim_half_done) {
+		ATOM_CAS(sim_half_done, false, true);
+		printf("half done, do checkpoint\n");
 	}
 	return done;
 }

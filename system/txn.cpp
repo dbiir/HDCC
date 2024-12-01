@@ -539,6 +539,7 @@ void TxnManager::reset_query() {
 
 RC TxnManager::commit() {
 	DEBUG("Commit %ld\n",get_txn_id());
+	belong_checkpoint = !simulation->checkpoint_state;
 	release_locks(RCOK);
 #if CC_ALG == MAAT
 	time_table.release(get_thd_id(),get_txn_id());

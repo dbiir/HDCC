@@ -57,6 +57,7 @@
 #include "tictoc.h"
 #include "key_xid.h"
 #include "rts_cache.h"
+#include "checkpoint_thread.h"
 
 void network_test();
 void network_test_recv();
@@ -85,6 +86,7 @@ ConflictThread * conflict_thds;
 #if CC_ALG == ARIA
 AriaSequencerThread * aria_seq_thds;
 #endif
+CheckpointThread * chkpt_thds;
 
 // defined in parser.cpp
 void parser(int argc, char * argv[]);
@@ -323,7 +325,9 @@ int main(int argc, char *argv[]) {
 	all_thd_cnt += 1;	//sequencer thread
 	all_thd_cnt -= 1; 	//abort thread
 #endif
+	all_thd_cnt += 1; //chkpt thread
 
+	g_this_total_thread_cnt += 1; //chkpt thread
 
 	printf("%ld, %ld, %ld, %d \n", thd_cnt, rthd_cnt, sthd_cnt, g_abort_thread_cnt);
 	printf("all_thd_cnt: %ld, g_this_total_thread_cnt: %d \n", all_thd_cnt, g_this_total_thread_cnt);
@@ -360,6 +364,7 @@ int main(int argc, char *argv[]) {
 #if CC_ALG == ARIA
 	aria_seq_thds = new AriaSequencerThread[1];
 #endif
+	chkpt_thds = new CheckpointThread[1];
 	// query_queue should be the last one to be initialized!!!
 	// because it collects txn latency
 	//if (WORKLOAD != TEST) {
@@ -554,6 +559,9 @@ int main(int argc, char *argv[]) {
 	stats_per_interval_thds[0].init(id, g_node_id, m_wl);
 	pthread_create(&p_thds[id++], &attr, run_thread, (void *)&stats_per_interval_thds[0]);
 #endif
+
+	chkpt_thds[0].init(id, g_node_id, m_wl);
+	pthread_create(&p_thds[id++], NULL, run_thread, (void *)&chkpt_thds[0]);
 	for (uint64_t i = 0; i < all_thd_cnt; i++) pthread_join(p_thds[i], NULL);
 
 	endtime = get_server_clock();

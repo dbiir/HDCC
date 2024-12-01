@@ -54,10 +54,12 @@ RC row_t::init(table_t *host_table, uint64_t part_id, uint64_t row_id) {
 	Catalog * schema = host_table->get_schema();
 	tuple_size = schema->get_tuple_size();
 #if SIM_FULL_ROW
-	data = (char *) mem_allocator.alloc(sizeof(char) * tuple_size);
+	stable_data = (char *) mem_allocator.alloc(sizeof(char) * tuple_size);
+	live_data = NULL;
 #else
 	data = (char *) mem_allocator.alloc(sizeof(uint64_t) * 1);
 #endif
+	data = stable_data;
 	return RCOK;
 }
 
@@ -527,6 +529,13 @@ RC row_t::get_row(access_t type, TxnManager *txn, Access *access) {
   		INC_STATS(txn->get_thd_id(), trans_cur_row_copy_time, get_sys_clock() - copy_time);
 		goto end;
 	} else {
+		if (txn->get_batch_id() > simulation->checkpoint_epoch) {
+			if (live_data == NULL) {
+				live_data = (char *) mem_allocator.alloc(sizeof(char) * tuple_size);
+				memcpy(live_data, stable_data, sizeof(char) * tuple_size);
+				data = live_data;
+			}
+		}
 		access->data = this;
 		this->manager->max_calvin_read_tid = txn->get_txn_id();
 		this->manager->max_calvin_read_bid = txn->get_batch_id();

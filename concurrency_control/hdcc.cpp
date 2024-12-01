@@ -170,6 +170,10 @@ extreme_mode_stats:
     INC_STATS(get_thd_id(), saved_txn_cnt, 1);
   }
 #endif
+
+  if (!simulation->checkpoint_state && max_calvin_bid > simulation->checkpoint_epoch) {
+    return Abort;
+  }
   return rc;
 }
 
@@ -365,6 +369,12 @@ RC TxnManager::finish(RC rc) {
     for (uint64_t i = 0; i < txn->write_cnt; i++) {
       Access* access = txn->accesses[write_set[i]];
       row_t* row = access->orig_row;
+      if (!belong_checkpoint) {
+        if (row->live_data == NULL) {
+          row->live_data = (char *)mem_allocator.alloc(sizeof(char) * row->tuple_size);
+          row->data = row->live_data;
+        }
+      }
       row->copy(access->data);
       row->manager->_tid = get_txn_id();
       txn->accesses[write_set[i]]->orig_row->manager->lock_release(this);

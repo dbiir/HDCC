@@ -225,6 +225,9 @@ void Sequencer::process_ack(Message * msg, uint64_t thd_id) {
 #if CC_ALG == HDCC
 			blocked = false;
 #endif
+			if (en->epoch == simulation->checkpoint_epoch) {
+				simulation->checkpoint_state = true;
+			}
 	}
 	INC_STATS(thd_id,seq_ack_time,get_sys_clock() - prof_stat);
 }

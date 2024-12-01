@@ -159,6 +159,8 @@ public:
 		void leave_critical_section();
 	#endif
 	char * data;
+	char * stable_data;
+	char * live_data;
 	int tuple_size;
 	table_t * table;
 private:

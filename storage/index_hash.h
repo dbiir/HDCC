@@ -74,6 +74,11 @@ public:
 	RC	 		index_read(idx_key_t key, itemid_t * &item,
 							int part_id=-1, int thd_id=0);
 
+	uint64_t    get_buckets(BucketHeader ** &buckets) {
+		buckets = _buckets;
+		return _bucket_cnt_per_part;
+	}
+
 	// the following call returns a list of items
 //	RC 			index_read(idx_key_t key, Link_Item * &li, uint64_t &item_cnt);
 

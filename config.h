@@ -239,11 +239,12 @@
 // Logging
 /***********************************************/
 #define LOG_COMMAND         false
-#define LOG_REDO          false
-#define LOGGING false
-#define SYNCHRONIZATION false
+#define LOG_REDO          true
+#define LOGGING true
+#define SYNCHRONIZATION true
 #define LOG_BUF_MAX 10
 #define LOG_BUF_TIMEOUT 10 * 1000000UL // 10ms
+#define CHECKPOINT true
 
 /***********************************************/
 // Benchmark
