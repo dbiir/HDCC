@@ -9,6 +9,8 @@ HDCC is based on the testbed Deneva, which can be found in the following paper:
     Rachael Harding, Dana Van Aken, Andrew Pavlo, Michael Stonebraker
     https://www.vldb.org/pvldb/vol10/p553-harding.pdf
 
+We added full TPC-C to the main branch and the checkpoint mechanism to the checkpoint branch for evaluation.
+
 Build & Test
 ------------
 
